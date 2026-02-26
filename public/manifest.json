@@ -1,0 +1,26 @@
+{
+  "name": "SmartLifeOS - Your Personal Life Management System",
+  "short_name": "SmartLifeOS",
+  "description": "All-in-one personal productivity app. Manage habits, track expenses, organize notes, set goals, and monitor your daily activities. Built for efficiency and offline-first experience.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#8a7ff2",
+  "background_color": "#1a1a1a",
+  "categories": ["productivity", "lifestyle", "finance", "utilities"],
+  "screenshots": [],
+  "icons": [
+    {
+      "src": "/favicon.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

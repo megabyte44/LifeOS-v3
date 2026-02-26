@@ -1,0 +1,418 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Mode - Default Green Theme */
+    --background: 210 17% 98%; /* #F9FAFB */
+    --foreground: 180 65% 4%; /* #030F0F */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 180 65% 4%; /* #030F0F */
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 65% 4%;
+    --primary: 155 100% 44%; /* #00DF82 */
+    --primary-foreground: 180 65% 4%; /* #030F0F */
+    --secondary: 220 14% 96%; /* Light gray for secondary elements */
+    --secondary-foreground: 180 65% 4%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%; /* Muted gray text */
+    --accent: 155 100% 44%; /* #00DF82 */
+    --accent-foreground: 180 65% 4%; /* #030F0F */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 220 13% 91%; /* #E5E7EB */
+    --input: 220 13% 91%;
+    --ring: 155 100% 44%; /* #00DF82 */
+    --chart-1: 155, 100%, 44%;
+    --chart-2: 167, 94%, 30%;
+    --chart-3: 160, 40%, 50%;
+    --chart-4: 150, 50%, 60%;
+    --chart-5: 170, 30%, 70%;
+    
+    --radius: 0.75rem; /* 12px */
+
+    /* Sidebar Variables */
+    --sidebar-background: 220 14% 96%;
+    --sidebar-foreground: 180 65% 4%;
+    --sidebar-primary: 155 100% 44%;
+    --sidebar-primary-foreground: 180 65% 4%;
+    --sidebar-accent: 155 100% 44%;
+    --sidebar-accent-foreground: 180 65% 4%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 155 100% 44%;
+  }
+
+  .dark {
+    /* Dark Mode - Default Green Theme */
+    --background: 180 60% 4%; /* #030F0F */
+    --foreground: 0 0% 88%; /* #E0E0E0 */
+    
+    --card: 157 47% 12%; /* #102A23 */
+    --card-foreground: 0 0% 88%; /* #E0E0E0 */
+
+    --popover: 157 47% 12%;
+    --popover-foreground: 0 0% 88%;
+    
+    --primary: 155 100% 44%; /* #00DF82 */
+    --primary-foreground: 180 60% 4%; /* #030F0F */
+
+    --secondary: 157 47% 12%; /* Standard Card color */
+    --secondary-foreground: 0 0% 88%;
+    
+    --muted: 157 47% 12%;
+    --muted-foreground: 0 0% 65%; /* Muted Text */
+    
+    --accent: 155 100% 44%; /* #00DF82 */
+    --accent-foreground: 180 60% 4%; /* #030F0F */
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 88%;
+    
+    --border: 157 40% 18%; /* #1D3C33 */
+    --input: 159 45% 9%; /* #0D211B */
+    --ring: 155 100% 44%; /* #00DF82 */
+    
+    --chart-1: 155, 100%, 44%;
+    --chart-2: 167, 94%, 30%;
+    --chart-3: 160, 40%, 50%;
+    --chart-4: 150, 50%, 60%;
+    --chart-5: 170, 30%, 70%;
+
+    /* Sidebar Variables */
+    --sidebar-background: 157 47% 12%;
+    --sidebar-foreground: 0 0% 88%;
+    --sidebar-primary: 155 100% 44%;
+    --sidebar-primary-foreground: 180 60% 4%;
+    --sidebar-accent: 155 100% 44%;
+    --sidebar-accent-foreground: 180 60% 4%;
+    --sidebar-border: 157 40% 18%;
+    --sidebar-ring: 155 100% 44%;
+  }
+
+  html.theme-indigo {
+    /* Light Mode - Indigo */
+    --background: 220 17% 98%;
+    --foreground: 222 39% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 39% 11%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 39% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 258 92% 76%;
+    --accent-foreground: 222 39% 11%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 239 84% 67%;
+  }
+
+  html.dark.theme-indigo {
+    /* Dark Mode - Indigo */
+    --background: 239 41% 12%;
+    --foreground: 220 13% 91%;
+    --card: 238 41% 17%;
+    --card-foreground: 220 13% 91%;
+    --popover: 238 41% 17%;
+    --popover-foreground: 220 13% 91%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 238 41% 17%;
+    --secondary-foreground: 220 13% 91%;
+    --muted: 238 41% 17%;
+    --muted-foreground: 220 9% 55%;
+    --accent: 258 92% 76%;
+    --accent-foreground: 0 0% 100%;
+    --border: 238 38% 23%;
+    --input: 238 41% 16%;
+    --ring: 239 84% 67%;
+  }
+
+  html.theme-charcoal-yellow {
+    /* Light Mode - Charcoal & Yellow */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 10%;
+    --popover: 0 0% 98%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 45 100% 53%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 45 100% 53%;
+    --accent-foreground: 0 0% 10%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 45 100% 53%;
+  }
+
+  html.dark.theme-charcoal-yellow {
+    /* Dark Mode - Charcoal & Yellow */
+    --background: 0 0% 10%;
+    --foreground: 0 0% 96%;
+    --card: 0 0% 15%;
+    --card-foreground: 0 0% 96%;
+    --popover: 0 0% 15%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 45 100% 53%;
+    --primary-foreground: 0 0% 10%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 66%;
+    --accent: 45 100% 53%;
+    --accent-foreground: 0 0% 10%;
+    --border: 0 0% 20%;
+    --input: 0 0% 12%;
+    --ring: 45 100% 53%;
+  }
+
+  /* Lavendar Theme - #F492F0 (Pink/Lavender) */
+  html.theme-lavendar {
+    --background: 302 92% 96%;
+    --foreground: 302 45% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 302 45% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 302 45% 15%;
+    --primary: 302 84% 76%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 302 30% 95%;
+    --secondary-foreground: 302 45% 15%;
+    --muted: 302 30% 95%;
+    --muted-foreground: 302 20% 45%;
+    --accent: 302 84% 76%;
+    --accent-foreground: 0 0% 100%;
+    --border: 302 30% 90%;
+    --input: 302 30% 90%;
+    --ring: 302 84% 76%;
+  }
+
+  html.dark.theme-lavendar {
+    --background: 274 65% 27%;
+    --foreground: 302 30% 95%;
+    --card: 274 65% 32%;
+    --card-foreground: 302 30% 95%;
+    --popover: 274 65% 32%;
+    --popover-foreground: 302 30% 95%;
+    --primary: 302 84% 76%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 274 65% 32%;
+    --secondary-foreground: 302 30% 95%;
+    --muted: 274 65% 32%;
+    --muted-foreground: 302 20% 70%;
+    --accent: 302 84% 76%;
+    --accent-foreground: 0 0% 100%;
+    --border: 274 65% 37%;
+    --input: 274 65% 30%;
+    --ring: 302 84% 76%;
+  }
+
+  /* Lemonade Theme - #B8FB3C (Lime Yellow) */
+  html.theme-lemonade {
+    --background: 70 96% 96%;
+    --foreground: 240 80% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 80% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 80% 15%;
+    --primary: 70 96% 61%;
+    --primary-foreground: 240 80% 15%;
+    --secondary: 70 50% 95%;
+    --secondary-foreground: 240 80% 15%;
+    --muted: 70 50% 95%;
+    --muted-foreground: 240 30% 45%;
+    --accent: 70 96% 61%;
+    --accent-foreground: 240 80% 15%;
+    --border: 70 30% 85%;
+    --input: 70 30% 85%;
+    --ring: 70 96% 61%;
+  }
+
+  html.dark.theme-lemonade {
+    --background: 240 80% 15%;
+    --foreground: 70 96% 61%;
+    --card: 240 70% 20%;
+    --card-foreground: 70 96% 61%;
+    --popover: 240 70% 20%;
+    --popover-foreground: 70 96% 61%;
+    --primary: 70 96% 61%;
+    --primary-foreground: 240 80% 15%;
+    --secondary: 240 70% 20%;
+    --secondary-foreground: 70 96% 61%;
+    --muted: 240 70% 20%;
+    --muted-foreground: 70 50% 75%;
+    --accent: 70 96% 61%;
+    --accent-foreground: 240 80% 15%;
+    --border: 240 60% 25%;
+    --input: 240 70% 18%;
+    --ring: 70 96% 61%;
+  }
+
+  /* Sunset Theme - #FE7F2D (Orange) */
+  html.theme-sunset {
+    --background: 24 99% 95%;
+    --foreground: 24 50% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 50% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 50% 15%;
+    --primary: 24 99% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 24 50% 95%;
+    --secondary-foreground: 24 50% 15%;
+    --muted: 24 50% 95%;
+    --muted-foreground: 24 20% 45%;
+    --accent: 24 99% 59%;
+    --accent-foreground: 0 0% 100%;
+    --border: 24 30% 90%;
+    --input: 24 30% 90%;
+    --ring: 24 99% 59%;
+  }
+
+  html.dark.theme-sunset {
+    --background: 192 59% 26%;
+    --foreground: 24 99% 59%;
+    --card: 192 59% 31%;
+    --card-foreground: 24 99% 59%;
+    --popover: 192 59% 31%;
+    --popover-foreground: 24 99% 59%;
+    --primary: 24 99% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 192 59% 31%;
+    --secondary-foreground: 24 99% 59%;
+    --muted: 192 59% 31%;
+    --muted-foreground: 24 50% 75%;
+    --accent: 24 99% 59%;
+    --accent-foreground: 0 0% 100%;
+    --border: 192 59% 36%;
+    --input: 192 59% 29%;
+    --ring: 24 99% 59%;
+  }
+
+  /* Dreamy Theme - #EAEBED (Light Gray/Blue) */
+  html.theme-dreamy {
+    --background: 240 11% 93%;
+    --foreground: 201 100% 34%;
+    --card: 0 0% 100%;
+    --card-foreground: 201 100% 34%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 201 100% 34%;
+    --primary: 201 100% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 11% 90%;
+    --secondary-foreground: 201 100% 34%;
+    --muted: 240 11% 90%;
+    --muted-foreground: 201 50% 50%;
+    --accent: 201 100% 34%;
+    --accent-foreground: 0 0% 100%;
+    --border: 240 11% 85%;
+    --input: 240 11% 85%;
+    --ring: 201 100% 34%;
+  }
+
+  html.dark.theme-dreamy {
+    --background: 201 100% 12%;
+    --foreground: 240 11% 93%;
+    --card: 201 100% 17%;
+    --card-foreground: 240 11% 93%;
+    --popover: 201 100% 17%;
+    --popover-foreground: 240 11% 93%;
+    --primary: 201 100% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 201 100% 17%;
+    --secondary-foreground: 240 11% 93%;
+    --muted: 201 100% 17%;
+    --muted-foreground: 240 11% 75%;
+    --accent: 201 100% 34%;
+    --accent-foreground: 0 0% 100%;
+    --border: 201 100% 22%;
+    --input: 201 100% 15%;
+    --ring: 201 100% 34%;
+  }
+
+  /* Crimson Theme - #D7263D (Red) */
+  html.theme-crimson {
+    --background: 351 74% 95%;
+    --foreground: 351 74% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 351 74% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 351 74% 20%;
+    --primary: 351 74% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 351 40% 95%;
+    --secondary-foreground: 351 74% 20%;
+    --muted: 351 40% 95%;
+    --muted-foreground: 351 30% 45%;
+    --accent: 351 74% 50%;
+    --accent-foreground: 0 0% 100%;
+    --border: 351 30% 90%;
+    --input: 351 30% 90%;
+    --ring: 351 74% 50%;
+  }
+
+  html.dark.theme-crimson {
+    --background: 198 94% 12%;
+    --foreground: 351 74% 80%;
+    --card: 198 94% 17%;
+    --card-foreground: 351 74% 80%;
+    --popover: 198 94% 17%;
+    --popover-foreground: 351 74% 80%;
+    --primary: 351 74% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 198 94% 17%;
+    --secondary-foreground: 351 74% 80%;
+    --muted: 198 94% 17%;
+    --muted-foreground: 351 40% 70%;
+    --accent: 351 74% 50%;
+    --accent-foreground: 0 0% 100%;
+    --border: 198 94% 22%;
+    --input: 198 94% 15%;
+    --ring: 351 74% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
