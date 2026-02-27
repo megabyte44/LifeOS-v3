@@ -986,7 +986,9 @@ export default function DashboardPage() {
         delay: 250,
         tolerance: 5,
       },
-    }),router = useRouter();
+    })
+  );
+  const router = useRouter();
   const [username, setUsername] = useState<string | null>(null);
   const [greeting, setGreeting] = useState('');
   const [now, setNow] = useState(new Date());
