@@ -1,3 +1,36 @@
+server:
+  port: 8000
+
 spring:
   application:
     name: LifeOS-backend
+
+  # ── PostgreSQL Datasource ──
+  datasource:
+    url: jdbc:postgresql://localhost:5432/lifeos
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  # ── JPA / Hibernate ──
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Flyway manages schema; Hibernate only validates
+    show-sql: true                 # Log SQL statements (disable in production)
+    open-in-view: false            # Best practice: avoid lazy-loading in controllers
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ── Flyway ──
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# ── Logging ──
+logging:
+  level:
+    com.lifos.backend: DEBUG
+    org.springframework.security: DEBUG
