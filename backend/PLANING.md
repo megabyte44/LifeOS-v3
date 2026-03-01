@@ -74,15 +74,15 @@ CREATE DATABASE lifeos;
 **Topics:** Layered architecture, JPA Entity, JpaRepository, REST Controller, DTO, Lombok, UUID, CORS
 
 ### Steps
-- [ ] Create CORS configuration (`WebConfig.java`)
-- [ ] Create global exception handler (`GlobalExceptionHandler.java`)
-- [ ] Create `User` entity + `UserRepository`
-- [ ] Create `TodoItem` entity + DTO classes
-- [ ] Create `TodoRepository`
-- [ ] Create `TodoService` — CRUD logic
-- [ ] Create `TodoController` — 4 endpoints
-- [ ] Verify app compiles and starts
-- [ ] Test all endpoints with Postman/curl (no auth yet)
+- [x] Create CORS configuration (`WebConfig.java`)
+- [x] Create global exception handler (`GlobalExceptionHandler.java`)
+- [x] Create `User` entity + `UserRepository`
+- [x] Create `TodoItem` entity + DTO classes
+- [x] Create `TodoRepository`
+- [x] Create `TodoService` — CRUD logic
+- [x] Create `TodoController` — 4 endpoints
+- [x] Verify app compiles and starts
+- [x] Test all endpoints with Postman/curl (no auth yet)
 
 ### Endpoints
 | Method | Path | Description |
@@ -98,12 +98,12 @@ CREATE DATABASE lifeos;
 **Topics:** Firebase Admin SDK (Java), Spring Security Filter Chain, OncePerRequestFilter, SecurityContext
 
 ### Steps
-- [ ] Add Firebase service account JSON to project
-- [ ] Create `FirebaseConfig` — initialize Firebase Admin SDK
-- [ ] Create `FirebaseAuthenticationFilter` — verify Bearer tokens
-- [ ] Create `SecurityConfig` — configure filter chain
-- [ ] Auto-create user on first login (if uid not in DB)
-- [ ] Update all controllers to scope by authenticated user
+- [x] Add Firebase service account JSON to project
+- [x] Create `FirebaseConfig` — initialize Firebase Admin SDK
+- [x] Create `FirebaseAuthenticationFilter` — verify Bearer tokens
+- [x] Create `SecurityConfig` — configure filter chain
+- [x] Auto-create user on first login (if uid not in DB)
+- [x] Update all controllers to scope by authenticated user
 - [ ] Test: login from frontend, verify API calls work
 
 ### Security Flow
@@ -120,39 +120,39 @@ Controller → Get uid from SecurityContext → Query user-scoped data
 **Topics:** JSONB columns, Hibernate JSON type, @Enumerated, encryption at rest
 
 ### 3a. Users Endpoints
-- [ ] `GET /api/users/me` — get current user profile
-- [ ] `PATCH /api/users/me` — update profile
+- [x] `GET /api/users/me` — get current user profile
+- [x] `PATCH /api/users/me` — update profile
 
 ### 3b. Transactions
-- [ ] Migration `V3__create_transactions_table.sql`
-- [ ] Entity + DTO + Repo + Service + Controller
-- [ ] Budget endpoints (`GET/PUT /api/transactions/budget`)
+- [x] Migration `V3__create_transactions_table.sql`
+- [x] Entity + DTO + Repo + Service + Controller
+- [x] Budget endpoints (`GET/PUT /api/transactions/budget`)
 
 ### 3c. Habits
-- [ ] Migration `V4__create_habits_table.sql`
-- [ ] JSONB `completions` field (Record<string, boolean|number>)
-- [ ] `?context=gym` query parameter filter
-- [ ] Entity + DTO + Repo + Service + Controller
+- [x] Migration `V4__create_habits_table.sql`
+- [x] JSONB `completions` field (Record<string, boolean|number>)
+- [x] `?context=gym` query parameter filter
+- [x] Entity + DTO + Repo + Service + Controller
 
 ### 3d. Notes
-- [ ] Migration `V5__create_notes_table.sql`
-- [ ] JSONB polymorphic `content` field
-- [ ] Entity + DTO + Repo + Service + Controller
+- [x] Migration `V5__create_notes_table.sql`
+- [x] JSONB polymorphic `content` field
+- [x] Entity + DTO + Repo + Service + Controller
 
 ### 3e. Credentials (Password Vault)
-- [ ] Migration `V6__create_credentials_table.sql`
-- [ ] Encryption at rest for sensitive fields (passwords, PINs)
-- [ ] Entity + DTO + Repo + Service + Controller
+- [x] Migration `V6__create_credentials_table.sql`
+- [x] Encryption at rest for sensitive fields (passwords, PINs) — AES-256-GCM
+- [x] Entity + DTO + Repo + Service + Controller
 
 ### 3f. Notifications
-- [ ] Migration `V7__create_notifications_table.sql`
-- [ ] `POST /mark-all-read` endpoint
-- [ ] Entity + DTO + Repo + Service + Controller
+- [x] Migration `V7__create_notifications_table.sql`
+- [x] `POST /mark-all-read` endpoint
+- [x] Entity + DTO + Repo + Service + Controller
 
 ### 3g. Preferences
-- [ ] Migration `V8__create_preferences_table.sql`
-- [ ] JSONB `features` and `onboarding` fields
-- [ ] Entity + DTO + Repo + Service + Controller
+- [x] Migration `V8__create_preferences_table.sql`
+- [x] JSONB `features` and `onboarding` fields
+- [x] Entity + DTO + Repo + Service + Controller
 
 ---
 
@@ -160,12 +160,12 @@ Controller → Get uid from SecurityContext → Query user-scoped data
 **Topics:** @OneToMany, @ManyToOne, CascadeType.ALL, orphanRemoval, self-referencing entity, LAZY vs EAGER
 
 ### Steps
-- [ ] Migration `V9__create_goals_tables.sql` (goals, sub_goals, progress_trackers, goal_notes, goal_resources)
-- [ ] `Goal` entity with @OneToMany relationships
-- [ ] `SubGoal` entity — self-referencing hierarchy
-- [ ] `ProgressTracker`, `GoalNote`, `GoalResource` entities
-- [ ] `GoalService` with nested CRUD
-- [ ] `GoalController` — `GET/POST/PUT/DELETE /api/goals`, `GET /api/goals/{id}`
+- [x] Migration `V9__create_goals_tables.sql` (goals, sub_goals, progress_trackers, goal_notes, goal_resources)
+- [x] `Goal` entity with @OneToMany relationships
+- [x] `SubGoal` entity — self-referencing hierarchy
+- [x] `ProgressTracker`, `GoalNote`, `GoalResource` entities
+- [x] `GoalService` with nested CRUD
+- [x] `GoalController` — `GET/POST/PUT/DELETE /api/goals`, `GET /api/goals/{id}`
 
 ### Entity Relationships
 ```
@@ -183,20 +183,20 @@ Goal
 **Topics:** Composite keys, multiple endpoints per domain, JSONB singletons
 
 ### 5a. Planner
-- [ ] Migration `V10__create_planner_tables.sql`
-- [ ] `GET /api/planner` — returns `Record<string, PlannerItem[]>`
-- [ ] `PUT /api/planner/{day}` — replace day's items
-- [ ] `POST/PUT/DELETE /api/planner/{day}/items/{id}`
+- [x] Migration `V10__create_planner_tables.sql`
+- [x] `GET /api/planner` — returns `Record<string, PlannerItem[]>`
+- [x] `PUT /api/planner/{day}` — replace day's items
+- [x] `POST/PUT/DELETE /api/planner/{day}/items/{id}`
 
 ### 5b. Gym Module (12 endpoints)
-- [ ] Migration `V11__create_gym_tables.sql`
-- [ ] Workout split — JSONB singleton (`GET/PUT`)
-- [ ] Cycle config — single row (`GET/PUT`)
-- [ ] Protein intakes — CRUD (`GET/POST/DELETE`)
-- [ ] Food log — CRUD (`GET/POST/DELETE`)
-- [ ] Completions — JSONB map (`GET/PUT`)
-- [ ] Custom foods — JSONB array (`GET/PUT`)
-- [ ] Protein target — single value (`GET/PUT`)
+- [x] Migration `V11__create_gym_tables.sql`
+- [x] Workout split — JSONB singleton (`GET/PUT`)
+- [x] Cycle config — single row (`GET/PUT`)
+- [x] Protein intakes — CRUD (`GET/POST/DELETE`)
+- [x] Food log — CRUD (`GET/POST/DELETE`)
+- [x] Completions — JSONB map (`GET/PUT`)
+- [x] Custom foods — JSONB array (`GET/PUT`)
+- [x] Protein target — single value (`GET/PUT`)
 
 ---
 
@@ -204,30 +204,31 @@ Goal
 **Topics:** Role-based authorization, @PreAuthorize, method-level security, global singletons
 
 ### Steps
-- [ ] Migration `V12__create_admin_tables.sql` (ai_config, system_settings, announcements, about_page)
-- [ ] `GET /api/admin/check` — admin status check
-- [ ] `GET /api/admin/users` — list users with stats (cross-table join query)
-- [ ] AI Configuration — `GET/PUT /api/admin/ai-config`
-- [ ] System Settings — `GET/PUT /api/admin/settings`
-- [ ] Announcements — full CRUD
-- [ ] About Page — `GET/PUT /api/admin/about`
-- [ ] `@PreAuthorize("hasRole('ADMIN')")` on all admin endpoints
+- [x] Migration `V12__create_admin_tables.sql` (ai_config, system_settings, announcements, about_page)
+- [x] `GET /api/admin/check` — admin status check
+- [x] `GET /api/admin/users` — list users with stats (cross-table join query)
+- [x] AI Configuration — `GET/PUT /api/admin/ai-config`
+- [x] System Settings — `GET/PUT /api/admin/settings`
+- [x] Announcements — full CRUD
+- [x] About Page — `GET/PUT /api/admin/about`
+- [x] `@PreAuthorize("hasRole('ADMIN')")` on all admin endpoints
 
 ---
 
 ## Phase 7: AI Chat & Push Notifications
 **Topics:** HTTP client (RestTemplate/WebClient), proxying API calls, Web Push protocol, @Async
 
-### 7a. AI Chat
-- [ ] `POST /api/ai/chat` — proxy to configured AI provider
-- [ ] Read API keys from `AiConfiguration` table
-- [ ] Support OpenRouter, Gemini, OpenAI providers
+### 7a. Push Notifications
+- [x] Migration `V13__create_push_subscriptions_table.sql`
+- [x] `POST /api/push/subscribe`
+- [x] `POST /api/push/unsubscribe`
+- [x] `POST /api/push/send-test`
+### 7b. AI Chat
+- [x] `POST /api/ai/chat` — proxy to configured AI provider
+- [x] Read API keys from `AiConfiguration` table
+- [x] Support OpenRouter, Gemini, OpenAI providers
 
-### 7b. Push Notifications
-- [ ] Migration `V13__create_push_subscriptions_table.sql`
-- [ ] `POST /api/push/subscribe`
-- [ ] `POST /api/push/unsubscribe`
-- [ ] `POST /api/push/send-test`
+
 
 ---
 

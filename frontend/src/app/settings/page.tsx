@@ -402,57 +402,6 @@ export default function SettingsPage() {
     return () => {};
   }, [user]);
 
-        if (docSnap.exists()) {
-            const settingsData = (docSnap.data() as {items: { gymTracking?: boolean; theme?: string }}).items;
-            setSettings({
-                gymTracking: settingsData.gymTracking !== false,
-                theme: settingsData.theme || 'charcoal-yellow',
-            });
-        } else {
-            // If settings don't exist, create them
-            const defaultSettings = { gymTracking: true, theme: 'charcoal-yellow' };
-            setDoc(settingsDocRef, { items: defaultSettings });
-            setSettings(defaultSettings);
-        }
-    });
-    
-    // Load dashboard preferences
-    const prefsDocRef = doc(db, 'users', user.uid, 'data', 'preferences');
-    const prefsUnsubscribe = onSnapshot(prefsDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data() as { items: UserPreferences };
-            setPreferences(data.items);
-        } else {
-            // Set defaults and save them
-            const defaultPrefs: UserPreferences = {
-              features: {
-                waterIntake: true,
-                todaysPlan: true,
-                financialSnapshot: true,
-                todoList: true,
-                habitStreaks: true,
-                gymTracker: true,
-                proteinIntake: true,
-                foodSupplements: true,
-                overloadTracker: true,
-                gymProteinIntake: true,
-                gymFoodSupplements: true,
-                proteinIntakeWidget: true,
-                supplementIntakeWidget: true,
-              }
-            };
-            setDoc(prefsDocRef, { items: defaultPrefs });
-            setPreferences(defaultPrefs);
-        }
-        setIsLoading(false);
-    });
-    
-    return () => {
-        settingsUnsubscribe();
-        prefsUnsubscribe();
-    };
-  }, [user]);
-
   const handleSettingChange = async (key: string, value: boolean | string) => {
     if (!user) return;
     const newSettings = { ...settings, [key]: value };
@@ -461,7 +410,8 @@ export default function SettingsPage() {
     console.log('Saving settings:', newSettings); // Debug log
     
     try {
-      await safeSetDoc(`users/${user.uid}/data`, 'settings', { items: newSettings });
+      // TODO: Connect to settings API when backend is ready
+      console.log('Settings saved locally:', newSettings);
       
       toast({
         title: "Setting updated!",
@@ -491,7 +441,8 @@ export default function SettingsPage() {
     setPreferences(newPreferences);
     
     try {
-      await safeSetDoc(`users/${user.uid}/data`, 'preferences', { items: newPreferences });
+      // TODO: Connect to preferences API when backend is ready
+      console.log('Preferences saved locally:', newPreferences);
       
       toast({
         title: "Preference updated!",

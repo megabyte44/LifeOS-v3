@@ -62,12 +62,8 @@
 			<version>9.4.3</version>
 		</dependency>
 
-		<!-- Hibernate Types — JSONB column support for PostgreSQL -->
-		<dependency>
-			<groupId>io.hypersistence</groupId>
-			<artifactId>hypersistence-utils-hibernate-63</artifactId>
-			<version>3.9.0</version>
-		</dependency>
+		<!-- Hibernate Types — JSONB column support (added in Phase 3) -->
+		<!-- io.hypersistence:hypersistence-utils-hibernate-70 will be added when JSONB entities are needed -->
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -87,28 +83,20 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
+			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Web Push (VAPID) — Push Notifications (Phase 7) -->
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-flyway-test</artifactId>
-			<scope>test</scope>
+			<groupId>nl.martijndwars</groupId>
+			<artifactId>web-push</artifactId>
+			<version>5.1.1</version>
 		</dependency>
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc-test</artifactId>
-			<scope>test</scope>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.78.1</version>
 		</dependency>
 	</dependencies>
 

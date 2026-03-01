@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { NoteContentViewer } from '@/components/NoteContentViewer';
 import type { Note } from '@/types';
-import { P_NOTES } from '@/lib/placeholder-data';
+import { useNotes } from '@/hooks/api';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Search, LayoutGrid, List, Trash2, X, Save, Edit, Loader2, Copy, ArrowUpDown, Code2 } from 'lucide-react';
@@ -694,53 +694,39 @@ function NoteCard({ note, onEdit, onView, onCopy }: { note: Note; onEdit: () => 
 export default function NotesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  // Removed: useSafeFirestore
-  const [notes, setNotes] = useState<Note[]>([]);
+  const {
+    notes,
+    isLoading,
+    addNote: addNoteApi,
+    updateNote: updateNoteApi,
+    deleteNote: deleteNoteApi,
+  } = useNotes();
   const [searchTerm, setSearchTerm] = useState('');
   const [layout, setLayout] = useState<Layout>('grid');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
-  const [isLoading, setIsLoading] = useState(true);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    setIsLoading(true);
-    
-    // Mock data load
-    setNotes(P_NOTES);
-    setIsLoading(false);
-
-    // Removed: Firestore onSnapshot
-  }, [user]);
-
-  const saveNotes = async (updatedNotes: Note[]) => {
-    if (!user) return;
-    // Removed: safeSetDoc
-    console.log('Would save notes:', updatedNotes);
-  };
+  // Data loaded via useNotes hook
 
 
-  const handleSaveNote = (newNoteData: Omit<Note, 'id' | 'createdAt'>) => {
-    const newNote: Note = { id: `note-${Date.now()}`, createdAt: formatISO(new Date()), ...newNoteData, };
-    const updatedNotes = [newNote, ...notes];
-    setNotes(updatedNotes);
-    saveNotes(updatedNotes);
+  const handleSaveNote = async (newNoteData: Omit<Note, 'id' | 'createdAt'>) => {
+    try { await addNoteApi({ ...newNoteData, createdAt: formatISO(new Date()) } as Omit<Note, 'id'>); }
+    catch (e) { console.error(e); }
     setIsAddingNote(false);
   };
   
-  const handleUpdateNote = (updatedNote: Note) => {
-    const updatedNotes = notes.map(n => n.id === updatedNote.id ? updatedNote : n);
-    setNotes(updatedNotes);
-    saveNotes(updatedNotes);
+  const handleUpdateNote = async (updatedNote: Note) => {
+    const { id, ...updates } = updatedNote;
+    try { await updateNoteApi({ id, updates }); }
+    catch (e) { console.error(e); }
     setEditingNoteId(null);
   };
 
-  const handleDeleteNote = (noteId: string) => {
-    const updatedNotes = notes.filter(note => note.id !== noteId);
-    setNotes(updatedNotes);
-    saveNotes(updatedNotes);
+  const handleDeleteNote = async (noteId: string) => {
+    try { await deleteNoteApi(noteId); }
+    catch (e) { console.error(e); }
     setEditingNoteId(null);
   };
   

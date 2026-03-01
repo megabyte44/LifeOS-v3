@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useState } from 'react';
 import { useAdminCheck } from '@/hooks/use-admin-check';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,134 +14,66 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Announcement } from '@/types';
 import { Megaphone, Plus, Edit2, Trash2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminAnnouncements } from '@/hooks/api';
 
 export default function AnnouncementsPage() {
-  const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminCheck();
   const { toast } = useToast();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { announcements, isLoading, createAnnouncement: createAnnouncementApi, updateAnnouncement: updateAnnouncementApi, deleteAnnouncement: deleteAnnouncementApi } = useAdminAnnouncements();
+  const loading = adminLoading || isLoading;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
 
-  const emptyAnnouncement: Omit<Announcement, 'id' | 'createdAt' | 'createdBy'> = {
+  const emptyAnnouncement: Omit<Announcement, 'id' | 'createdAt'> = {
     title: '',
     content: '',
     type: 'info',
     version: '',
-    published: false
+    published: false,
+    createdBy: ''
   };
 
   const [formData, setFormData] = useState(emptyAnnouncement);
 
-  useEffect(() => {
-    if (adminLoading) return;
-    if (!isAdmin) return;
-    loadAnnouncements();
-  }, [isAdmin, adminLoading]);
-
-  async function loadAnnouncements() {
-    if (!user) return;
-    
-    try {
-      // Mock data loading
-      setTimeout(() => {
-        setAnnouncements([]);
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error('Error loading announcements:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load announcements",
-        variant: "destructive"
-      });
-      setLoading(false);
-    }
-  }
-
   async function saveAnnouncement() {
-    if (!user) return;
     if (!formData.title || !formData.content) {
-      toast({
-        title: "Validation Error",
-        description: "Title and content are required",
-        variant: "destructive"
-      });
+      toast({ title: "Validation Error", description: "Title and content are required", variant: "destructive" });
       return;
     }
-
     try {
-      const announcementData: Announcement = {
-        ...formData,
-        id: editingAnnouncement?.id || `announcement-${Date.now()}`,
-        createdAt: editingAnnouncement?.createdAt || new Date().toISOString(),
-        createdBy: editingAnnouncement?.createdBy || user.uid,
-        publishedAt: formData.published ? new Date().toISOString() : undefined
-      };
-
-      console.log('Saving announcement:', announcementData);
-      
-      toast({
-        title: "Success",
-        description: editingAnnouncement ? "Announcement updated" : "Announcement created"
-      });
-
+      if (editingAnnouncement) {
+        await updateAnnouncementApi({ id: editingAnnouncement.id, updates: { ...formData } });
+      } else {
+        await createAnnouncementApi({ ...formData });
+      }
+      toast({ title: "Success", description: editingAnnouncement ? "Announcement updated" : "Announcement created" });
       setDialogOpen(false);
       setEditingAnnouncement(null);
       setFormData(emptyAnnouncement);
-      loadAnnouncements();
     } catch (error) {
       console.error('Error saving announcement:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save announcement",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to save announcement", variant: "destructive" });
     }
   }
 
   async function deleteAnnouncement(id: string) {
     if (!confirm('Delete this announcement?')) return;
-
     try {
-      console.log('Deleting announcement:', id);
-      toast({
-        title: "Success",
-        description: "Announcement deleted"
-      });
-      loadAnnouncements();
+      await deleteAnnouncementApi(id);
+      toast({ title: "Success", description: "Announcement deleted" });
     } catch (error) {
       console.error('Error deleting announcement:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete announcement",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to delete announcement", variant: "destructive" });
     }
   }
 
   async function togglePublish(announcement: Announcement) {
     try {
-      const updated = {
-        ...announcement,
-        published: !announcement.published,
-        publishedAt: !announcement.published ? new Date().toISOString() : undefined
-      };
-
-      console.log('Updating announcement:', updated);
-      toast({
-        title: "Success",
-        description: updated.published ? "Announcement published" : "Announcement unpublished"
-      });
-      loadAnnouncements();
+      await updateAnnouncementApi({ id: announcement.id, updates: { published: !announcement.published, publishedAt: !announcement.published ? new Date().toISOString() : undefined } });
+      toast({ title: "Success", description: !announcement.published ? "Announcement published" : "Announcement unpublished" });
     } catch (error) {
       console.error('Error toggling publish:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update announcement",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to update announcement", variant: "destructive" });
     }
   }
 
@@ -154,7 +85,8 @@ export default function AnnouncementsPage() {
         content: announcement.content,
         type: announcement.type,
         version: announcement.version || '',
-        published: announcement.published
+        published: announcement.published,
+        createdBy: announcement.createdBy || ''
       });
     } else {
       setEditingAnnouncement(null);

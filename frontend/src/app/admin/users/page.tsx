@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,53 +14,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { useAuth } from '@/hooks/use-auth';
 import { useAdminCheck } from '@/hooks/use-admin-check';
 import { UserStats } from '@/types';
 import { Users, Search, RefreshCw, Download, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAdminUsers } from '@/hooks/api';
 
 export default function UsersManagementPage() {
-  const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminCheck();
-  const [users, setUsers] = useState<UserStats[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { users, isLoading, refetch } = useAdminUsers();
+  const loading = adminLoading || isLoading;
+  const [searchTerm, setSearchTerm] = useState('');  
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'email' | 'lastLogin' | 'mostActive'>('newest');
-  const [stats, setStats] = useState({
-    total: 0,
-    activeToday: 0,
-    activeThisWeek: 0,
-    activeThisMonth: 0
-  });
 
-  useEffect(() => {
-    if (adminLoading) return;
-    if (!isAdmin) return;
-    loadUsers();
-  }, [isAdmin, adminLoading]);
-
-  async function loadUsers() {
-    setLoading(true);
-    try {
-      const token = await user?.getIdToken();
-      const response = await fetch('/api/admin/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users || []);
-        setStats(data.stats || stats);
-      }
-    } catch (error) {
-      console.error('Error loading users:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const stats = {
+    total: users.length,
+    activeToday: users.filter(u => new Date(u.lastLoginAt) >= todayStart).length,
+    activeThisWeek: users.filter(u => new Date(u.lastLoginAt) >= weekStart).length,
+    activeThisMonth: users.filter(u => new Date(u.lastLoginAt) >= monthStart).length,
+  };
 
   function exportUsers() {
     const csv = [
@@ -139,7 +115,7 @@ export default function UsersManagementPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={loadUsers} disabled={loading}>
+            <Button variant="outline" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>

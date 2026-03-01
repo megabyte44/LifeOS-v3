@@ -28,4 +28,6 @@ public interface TodoRepository extends JpaRepository<TodoItem, UUID> {
 
     /** Delete a todo only if it belongs to the given user */
     void deleteByIdAndUserUid(UUID id, String userUid);
+
+    long countByUserUid(String userUid);
 }

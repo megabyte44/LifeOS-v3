@@ -1,6 +1,7 @@
 package com.lifos.backend.controller;
 
 import com.lifos.backend.dto.*;
+import com.lifos.backend.security.SecurityUtils;
 import com.lifos.backend.service.TodoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -13,18 +14,9 @@ import java.util.UUID;
 /**
  * REST Controller — handles HTTP requests for the /api/todos endpoints.
  *
- * KEY CONCEPTS:
- * - @RestController → combines @Controller + @ResponseBody.
- *   Every method's return value is automatically converted to JSON.
- * - @RequestMapping("/api/todos") → base path for all methods in this class.
- * - @GetMapping, @PostMapping, etc. → map methods to HTTP verbs.
- * - @RequestBody → tells Spring: "parse the JSON request body into this Java object"
- * - @PathVariable → extracts a value from the URL path (e.g., /api/todos/{id})
- * - ResponseEntity → lets you control both the response body AND HTTP status code.
- *
- * PHASE 1 NOTE:
- * We hardcode a temporary user UID for testing. In Phase 2, we'll replace this
- * with the authenticated user from the Firebase token.
+ * Phase 2: User UID now comes from the Firebase-verified SecurityContext.
+ * FirebaseAuthenticationFilter runs before this controller and sets the
+ * SecurityContext. SecurityUtils.getCurrentUserUid() extracts the uid.
  */
 @RestController
 @RequestMapping("/api/todos")
@@ -33,13 +25,8 @@ public class TodoController {
 
     private final TodoService todoService;
 
-    /**
-     * TEMPORARY: hardcoded user UID for Phase 1 testing.
-     * In Phase 2, this will come from the Firebase SecurityContext.
-     */
     private String getCurrentUserUid() {
-        // TODO: Phase 2 — Replace with: SecurityContextHolder.getContext()...
-        return "temp-test-user";
+        return SecurityUtils.getCurrentUserUid();
     }
 
     // ── GET /api/todos ──

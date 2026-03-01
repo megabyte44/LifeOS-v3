@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SystemSettings } from '@/types';
 import { Settings, Save, AlertTriangle } from 'lucide-react';
+import { useAdminSystemSettings } from '@/hooks/api';
 import { useToast } from '@/hooks/use-toast';
 
 const DEFAULT_SETTINGS: SystemSettings = {
@@ -42,62 +43,21 @@ export default function SystemSettingsPage() {
   const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminCheck();
   const { toast } = useToast();
+  const { settings: apiSettings, isLoading: apiLoading, updateSettings: updateSettingsApi } = useAdminSystemSettings();
   const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const loading = adminLoading || apiLoading;
 
-  useEffect(() => {
-    if (adminLoading) return;
-    if (!isAdmin) return;
-    loadSettings();
-  }, [user, isAdmin, adminLoading]);
-
-  async function loadSettings() {
-    if (!user) return;
-    
-    try {
-      // Mock data loading
-      setTimeout(() => {
-        setSettings(DEFAULT_SETTINGS);
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error('Error loading settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load settings",
-        variant: "destructive"
-      });
-      setLoading(false);
-    }
-  }
+  useEffect(() => { if (apiSettings) setSettings(apiSettings); }, [apiSettings]);
 
   async function saveSettings() {
-    if (!user) return;
-    
     setSaving(true);
     try {
-      const updatedSettings = {
-        ...settings,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.uid
-      };
-      
-      // Mock save
-      console.log('Saving system settings:', updatedSettings);
-      
-      setSettings(updatedSettings);
-      toast({
-        title: "Success",
-        description: "Settings saved successfully!"
-      });
+      await updateSettingsApi({ ...settings, updatedAt: new Date().toISOString(), updatedBy: user?.uid || 'admin' });
+      toast({ title: "Success", description: "Settings saved successfully!" });
     } catch (error) {
       console.error('Error saving settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save settings",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
     } finally {
       setSaving(false);
     }

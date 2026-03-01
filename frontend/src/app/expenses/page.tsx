@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { P_TRANSACTIONS } from '@/lib/placeholder-data';
+import { useTransactions } from '@/hooks/api';
 import type { Transaction } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -76,9 +76,18 @@ const formatCurrency = (amountInCents: number) => `${(amountInCents / 100).toFix
 
 export default function ExpensesPage() {
   const { user } = useAuth();
-  const [transactions, setTransactions] = useState<Transaction[]>(P_TRANSACTIONS);
+  const {
+    transactions: apiTransactions,
+    monthlyBudget: apiBudget,
+    isLoading,
+    addTransaction: addTransactionApi,
+    deleteTransaction: deleteTransactionApi,
+    updateBudget: updateBudgetApi,
+  } = useTransactions();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [monthlyBudget, setMonthlyBudget] = useState(5000000);
-  const [isLoading, setIsLoading] = useState(false);
+  useEffect(() => { setTransactions(apiTransactions); }, [apiTransactions]);
+  useEffect(() => { if (apiBudget > 0) setMonthlyBudget(apiBudget); }, [apiBudget]);
   const [budgetInput, setBudgetInput] = useState('');
   const [isEditingBudget, setIsEditingBudget] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
@@ -137,14 +146,14 @@ export default function ExpensesPage() {
     };
   }, [transactions]);
 
-  const handleSetBudget = () => {
+  const handleSetBudget = async () => {
     if (!user) return;
     const budgetValue = parseFloat(budgetInput);
     if (isNaN(budgetValue) || budgetValue < 0) return;
     const budgetInCents = Math.round(budgetValue * 100);
     setMonthlyBudget(budgetInCents);
-    setUserDataSafe('budget', budgetInCents);
     setIsEditingBudget(false);
+    try { await updateBudgetApi(budgetInCents); } catch (e) { console.error(e); }
   };
 
   const handleEditBudget = () => {
@@ -152,49 +161,17 @@ export default function ExpensesPage() {
     setBudgetInput((monthlyBudget / 100).toFixed(2));
   };
   
-  const handleDeleteTransaction = (id: string) => {
-    if (!user) return;
-    const updatedTransactions = transactions.filter(t => t.id !== id);
-    setTransactions(updatedTransactions);
-    setUserDataSafe('transactions', updatedTransactions);
+  const handleDeleteTransaction = async (id: string) => {
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    try { await deleteTransactionApi(id); } catch (e) { console.error(e); }
   };
   
-  const handleAddTransaction = (newTxn: Transaction) => {
-    if (!user) return;
-    const updatedTransactions = [newTxn, ...transactions];
-    setTransactions(updatedTransactions);
-    setUserDataSafe('transactions', updatedTransactions);
-  };
-
-  const carryOverBalanceAndReset = async () => {
-    if (!user) return;
-    
-    // Calculate remaining balance from last month
-    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-    const remainingBalance = income - expenses;
-    
-    console.log('Carrying over balance from previous month:', formatCurrency(remainingBalance));
-    const budgetValue = parseFloat(budgetInput);
-    if (isNaN(budgetValue) || budgetValue < 0) return;
-    const budgetInCents = Math.round(budgetValue * 100);
-    setMonthlyBudget(budgetInCents);
-    setIsEditingBudget(false);
-  };
-
-  const handleEditBudget = () => {
-    setIsEditingBudget(true);
-    setBudgetInput((monthlyBudget / 100).toFixed(2));
-  };
-  
-  const handleDeleteTransaction = (id: string) => {
-    const updatedTransactions = transactions.filter(t => t.id !== id);
-    setTransactions(updatedTransactions);
-  };
-  
-  const handleAddTransaction = (newTxn: Transaction) => {
-    const updatedTransactions = [newTxn, ...transactions];
-    setTransactions(updatedTransactions);
+  const handleAddTransaction = async (newTxn: Transaction) => {
+    const { id, ...payload } = newTxn;
+    try {
+      const saved = await addTransactionApi(payload as Omit<Transaction, 'id'>);
+      setTransactions(prev => [saved, ...prev]);
+    } catch (e) { console.error(e); }
   };
 
   const carryOverBalanceAndReset = async () => {
@@ -245,7 +222,44 @@ export default function ExpensesPage() {
 
   const handleAutoResetToggle = async () => {
     const newValue = !autoResetEnabled;
-    setAutoResetEnabled(newValue               <li key={txn.id} className="flex items-center justify-between p-2 hover:bg-muted/50">
+    setAutoResetEnabled(newValue);
+  };
+
+  const renderTransactionsList = (transactionList: Transaction[]) => {
+    if (transactionList.length === 0) {
+      return <div className="text-center text-muted-foreground py-8">No transactions to display.</div>;
+    }
+
+    const groupedByDate = [...transactionList].sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
+      .reduce((acc, txn) => {
+        const dateKey = format(parseISO(txn.date), 'yyyy-MM-dd');
+        if (!acc[dateKey]) acc[dateKey] = [];
+        acc[dateKey].push(txn);
+        return acc;
+      }, {} as Record<string, Transaction[]>);
+
+    return (
+      <div className="space-y-4 max-h-96 overflow-y-auto">
+        {Object.entries(groupedByDate).map(([date, txns]) => {
+          const dailyExpenses = txns.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+          const dailyIncome = txns.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+          const dailyFees = txns.filter(t => t.type === 'fee').reduce((sum, t) => sum + t.amount, 0);
+
+          return (
+            <div key={date}>
+              <div className="flex justify-between items-center text-sm font-medium text-muted-foreground px-2 py-1.5 border-b bg-muted/50 rounded-t-md">
+                <span>{format(parseISO(date), 'dd MMM yyyy, EEEE')}</span>
+                <div className="flex gap-3 text-xs">
+                  {dailyIncome > 0 && <span className="text-green-600">+{formatCurrency(dailyIncome)}</span>}
+                  {dailyExpenses > 0 && <span className="text-red-600">-{formatCurrency(dailyExpenses)}</span>}
+                  {dailyFees > 0 && <span className="text-orange-600">Fees: {formatCurrency(dailyFees)}</span>}
+                </div>
+              </div>
+              <ul className="divide-y border-x border-b rounded-b-md">
+                {txns.map((txn) => {
+                  const { icon: Icon, color } = categoryDetails[txn.category] || categoryDetails['Other'];
+                  return (
+                    <li key={txn.id} className="flex items-center justify-between p-2 hover:bg-muted/50">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center ${color}`}>
                           <Icon className="h-4 w-4" />
@@ -254,8 +268,8 @@ export default function ExpensesPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <span className={`font-bold text-base ${
-                          txn.type === 'income' ? 'text-green-600' : 
-                          txn.type === 'expense' ? 'text-red-600' : 
+                          txn.type === 'income' ? 'text-green-600' :
+                          txn.type === 'expense' ? 'text-red-600' :
                           'text-orange-600'
                         }`}>
                           {txn.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(txn.amount))}

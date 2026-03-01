@@ -660,12 +660,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
   
-  if (loading || !user) {
+  // Only show the loading spinner while Firebase is resolving the auth state.
+  // Once loading is false and user is null, the useEffect above will redirect;
+  // return null here to avoid showing a spinner during that navigation.
+  if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center p-4">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (

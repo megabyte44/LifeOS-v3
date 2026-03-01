@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
@@ -73,7 +73,7 @@ interface ChatSession {
   createdAt: Date;
 }
 
-export default function AiChatPage() {
+function AiChatContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -997,5 +997,13 @@ export default function AiChatPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function AiChatPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
+      <AiChatContent />
+    </Suspense>
   );
 }

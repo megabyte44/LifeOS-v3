@@ -27,7 +27,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useAuth } from '@/hooks/use-auth';
+import { useGym } from '@/hooks/api';
 
 // Copy all the gym-related helper functions, components, and constants from habits page:
 // - augmentWorkoutSplit
@@ -2032,17 +2032,40 @@ function GymSettingsDialog({
   );
 }
 export default function GymPage() {
-  const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    workoutSplit: apiWorkoutSplit,
+    cycleConfig: apiCycleConfig,
+    proteinIntakes: apiProteinIntakes,
+    loggedFoodItems: apiLoggedFoodItems,
+    completedWorkouts,
+    customFoodItems: apiCustomFoodItems,
+    proteinTarget: apiProteinTarget,
+    isLoading,
+    updateWorkoutSplit: updateWorkoutSplitApi,
+    updateCycleConfig: updateCycleConfigApi,
+    addProteinIntake: addProteinIntakeApi,
+    deleteProteinIntake: deleteProteinIntakeApi,
+    addFoodItem: addFoodItemApi,
+    deleteFoodItem: deleteFoodItemApi,
+    toggleWorkoutCompletion: toggleWorkoutCompletionApi,
+    updateCustomFoods: updateCustomFoodsApi,
+    updateProteinTarget: updateProteinTargetApi,
+  } = useGym();
 
-  // All gym-related state
-  const [habits, setHabits] = useState<Habit[]>([]);
+  // Local state synced from API
   const [proteinIntakes, setProteinIntakes] = useState<ProteinIntake[]>([]);
   const [loggedFoodItems, setLoggedFoodItems] = useState<LoggedFoodItem[]>([]);
   const [proteinTarget, setProteinTarget] = useState(150);
   const [customFoodItems, setCustomFoodItems] = useState<string[]>(initialCustomFoodItems);
   const [cyclicalWorkoutSplit, setCyclicalWorkoutSplit] = useState<CyclicalWorkoutSplit>(initialWorkoutSplit);
   const [cycleConfig, setCycleConfig] = useState<CycleConfig>({ startDate: format(new Date(), 'yyyy-MM-dd'), startDayKey: "Day 1" });
+
+  useEffect(() => { if (apiProteinIntakes?.length) setProteinIntakes(apiProteinIntakes); }, [apiProteinIntakes]);
+  useEffect(() => { if (apiLoggedFoodItems?.length) setLoggedFoodItems(apiLoggedFoodItems); }, [apiLoggedFoodItems]);
+  useEffect(() => { if (apiCustomFoodItems?.length) setCustomFoodItems(apiCustomFoodItems); }, [apiCustomFoodItems]);
+  useEffect(() => { if (apiWorkoutSplit && Object.keys(apiWorkoutSplit).length > 0) setCyclicalWorkoutSplit(augmentWorkoutSplit(apiWorkoutSplit)); }, [apiWorkoutSplit]);
+  useEffect(() => { if (apiCycleConfig?.startDate) setCycleConfig(apiCycleConfig); }, [apiCycleConfig]);
+  useEffect(() => { if (apiProteinTarget) setProteinTarget(apiProteinTarget); }, [apiProteinTarget]);
   
   // Dialog states
   const [isGymSettingsOpen, setIsGymSettingsOpen] = useState(false);
@@ -2056,54 +2079,57 @@ export default function GymPage() {
     gymFoodSupplements: true,
   });
 
-  const handleProteinIntakesUpdate = useCallback((updatedIntakes: ProteinIntake[]) => {
+  const handleProteinIntakesUpdate = useCallback(async (updatedIntakes: ProteinIntake[]) => {
+      if (updatedIntakes.length > proteinIntakes.length) {
+          const newItem = updatedIntakes.find(i => !proteinIntakes.some(p => p.id === i.id));
+          if (newItem) { const { id: _id, ...rest } = newItem; await addProteinIntakeApi(rest as Omit<ProteinIntake, 'id'>).catch(() => {}); return; }
+      } else if (updatedIntakes.length < proteinIntakes.length) {
+          const deletedItem = proteinIntakes.find(p => !updatedIntakes.some(i => i.id === p.id));
+          if (deletedItem) { await deleteProteinIntakeApi(deletedItem.id).catch(() => {}); return; }
+      }
       setProteinIntakes(updatedIntakes);
-  }, []);
+  }, [proteinIntakes, addProteinIntakeApi, deleteProteinIntakeApi]);
 
-  const handleLoggedFoodItemsUpdate = useCallback((updatedItems: LoggedFoodItem[]) => {
+  const handleLoggedFoodItemsUpdate = useCallback(async (updatedItems: LoggedFoodItem[]) => {
+      if (updatedItems.length > loggedFoodItems.length) {
+          const newItem = updatedItems.find(i => !loggedFoodItems.some(f => f.id === i.id));
+          if (newItem) { const { id: _id, ...rest } = newItem; await addFoodItemApi(rest as Omit<LoggedFoodItem, 'id'>).catch(() => {}); return; }
+      } else if (updatedItems.length < loggedFoodItems.length) {
+          const deletedItem = loggedFoodItems.find(f => !updatedItems.some(i => i.id === f.id));
+          if (deletedItem) { await deleteFoodItemApi(deletedItem.id).catch(() => {}); return; }
+      }
       setLoggedFoodItems(updatedItems);
-  }, []);
+  }, [loggedFoodItems, addFoodItemApi, deleteFoodItemApi]);
 
-  const handleProteinTargetUpdate = useCallback((newTarget: number) => {
+  const handleProteinTargetUpdate = useCallback(async (newTarget: number) => {
       setProteinTarget(newTarget);
-  }, []);
+      await updateProteinTargetApi(newTarget).catch(() => {});
+  }, [updateProteinTargetApi]);
 
-  const handleCustomFoodItemsUpdate = useCallback((newItems: string[]) => {
+  const handleCustomFoodItemsUpdate = useCallback(async (newItems: string[]) => {
       setCustomFoodItems(newItems);
-  }, []);
+      await updateCustomFoodsApi(newItems).catch(() => {});
+  }, [updateCustomFoodsApi]);
   
-  const handleWorkoutSplitUpdate = useCallback((newSplit: CyclicalWorkoutSplit) => {
+  const handleWorkoutSplitUpdate = useCallback(async (newSplit: CyclicalWorkoutSplit) => {
     setCyclicalWorkoutSplit(newSplit);
-  }, []);
+    await updateWorkoutSplitApi(newSplit).catch(() => {});
+  }, [updateWorkoutSplitApi]);
 
-  const handleCycleConfigUpdate = useCallback((newConfig: CycleConfig) => {
+  const handleCycleConfigUpdate = useCallback(async (newConfig: CycleConfig) => {
     setCycleConfig(newConfig);
-  }, []);
+    await updateCycleConfigApi(newConfig).catch(() => {});
+  }, [updateCycleConfigApi]);
 
-  const handleHabitsUpdate = useCallback((newHabits: Habit[]) => {
-    setHabits(newHabits);
-  }, []);
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  const isTodayWorkoutCompleted = completedWorkouts[todayKey] ?? false;
 
-  const handleToggleWorkoutCompletion = () => {
-    if (!workoutHabit) return;
-    const newHabits = habits.map(h => {
-        if (h.id === workoutHabit.id) {
-            const newCompletions = { ...h.completions };
-            if (isTodayWorkoutCompleted) delete newCompletions[todayKey];
-            else newCompletions[todayKey] = true;
-            return { ...h, completions: newCompletions };
-        }
-        return h;
-    });
-    handleHabitsUpdate(newHabits);
+  const handleToggleWorkoutCompletion = async () => {
+    await toggleWorkoutCompletionApi({ date: todayKey, completed: !isTodayWorkoutCompleted }).catch(() => {});
   };
 
   const getWorkoutDayInfo = useWorkoutDayInfo(cyclicalWorkoutSplit, cycleConfig);
   const todaysWorkoutInfo = useMemo(() => getWorkoutDayInfo(new Date()), [getWorkoutDayInfo]);
-  
-  const workoutHabit = habits.find(h => h.icon === 'Dumbbell');
-  const todayKey = format(new Date(), 'yyyy-MM-dd');
-  const isTodayWorkoutCompleted = workoutHabit ? !!workoutHabit.completions[todayKey] : false;
 
   if (isLoading) {
     return (

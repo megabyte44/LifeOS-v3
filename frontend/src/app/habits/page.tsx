@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import type { Habit, Goal, SubGoal, ProgressTracker, GoalCategory } from '@/types';
-import { P_HABITS, P_GOALS } from '@/lib/placeholder-data';
+import { useHabits, useGoals } from '@/hooks/api';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -492,10 +492,26 @@ function StepByStepSubGoalItem({
 
 export default function HabitsPage() {
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    habits,
+    isLoading: habitsLoading,
+    addHabit: addHabitApi,
+    updateHabit: updateHabitApi,
+    deleteHabit: deleteHabitApi,
+  } = useHabits();
+  const {
+    goals: apiGoals,
+    isLoading: goalsLoading,
+    addGoal: addGoalApi,
+    updateGoal: updateGoalApi,
+  } = useGoals();
+  const isLoading = habitsLoading || goalsLoading;
+
+  // Local goals state synced from API for optimistic updates
+  const [goals, setGoals] = useState<Goal[]>([]);
+  useEffect(() => { setGoals(apiGoals); }, [apiGoals]);
 
   // Core State
-  const [habits, setHabits] = useState<Habit[]>(P_HABITS);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [isEditHabitDialogOpen, setIsEditHabitDialogOpen] = useState(false);
   const [isAddHabitDialogOpen, setIsAddHabitDialogOpen] = useState(false);
@@ -506,7 +522,6 @@ export default function HabitsPage() {
   const [isGoalsCollapsed, setIsGoalsCollapsed] = useState(true);
   
   // Goals state
-  const [goals, setGoals] = useState<Goal[]>(P_GOALS);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [goalsViewMode, setGoalsViewMode] = useState<'list' | 'detail'>('list');
   const [isAddGoalDialogOpen, setIsAddGoalDialogOpen] = useState(false);
@@ -543,45 +558,34 @@ export default function HabitsPage() {
   }, [newGoalType, newGoalStep]);
 
   // --- Handlers that save to Firestore ---
-  const handleHabitsUpdate = useCallback((updatedHabits: Habit[]) => {
-      setHabits(updatedHabits);
-  }, []);
-
-  const handleToggleCompletion = (habitId: string, date: string) => {
+  const handleToggleCompletion = async (habitId: string, date: string) => {
     if (!isSameDay(parseISO(date), new Date())) return;
-    const newHabits = habits.map(h => {
-        if (h.id === habitId) {
-            const newCompletions = {...h.completions};
-            if(newCompletions[date]) delete newCompletions[date];
-            else newCompletions[date] = true;
-            return {...h, completions: newCompletions};
-        }
-        return h;
-    });
-    handleHabitsUpdate(newHabits);
-  }
+    const habit = habits.find(h => h.id === habitId);
+    if (!habit) return;
+    const newCompletions = { ...habit.completions };
+    if (newCompletions[date]) delete newCompletions[date];
+    else newCompletions[date] = true;
+    await updateHabitApi({ id: habitId, updates: { completions: newCompletions } });
+  };
 
-  const handleSaveHabitName = (habitId: string, newName: string) => {
-    const newHabits = habits.map((h) => h.id === habitId ? { ...h, name: newName } : h);
-    handleHabitsUpdate(newHabits);
+  const handleSaveHabitName = async (habitId: string, newName: string) => {
+    await updateHabitApi({ id: habitId, updates: { name: newName } });
   };
   
-  const handleDeleteHabit = () => {
+  const handleDeleteHabit = async () => {
     if (!habitToDelete) return;
-    const newHabits = habits.filter(h => h.id !== habitToDelete.id);
-    handleHabitsUpdate(newHabits);
+    await deleteHabitApi(habitToDelete.id);
     setHabitToDelete(null);
   };
 
-  const handleAddHabit = (
+  const handleAddHabit = async (
     name: string, 
     icon: string, 
     habitType?: 'repetitive' | 'sprint', 
     sprintDuration?: number, 
     sprintEndDate?: string
   ) => {
-    const newHabit: Habit = {
-      id: `habit-${Date.now()}`, 
+    const newHabit: Omit<Habit, 'id'> = {
       name, 
       icon, 
       completions: {},
@@ -592,20 +596,18 @@ export default function HabitsPage() {
       newHabit.sprintStartDate = format(new Date(), 'yyyy-MM-dd');
       if (sprintDuration) {
         newHabit.sprintDuration = sprintDuration;
-        // Calculate end date from duration
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + sprintDuration);
         newHabit.sprintEndDate = format(endDate, 'yyyy-MM-dd');
       } else if (sprintEndDate) {
         newHabit.sprintEndDate = sprintEndDate;
-        // Calculate duration from end date
         const start = new Date();
         const end = parseISO(sprintEndDate);
         newHabit.sprintDuration = differenceInCalendarDays(end, start) + 1;
       }
     }
     
-    handleHabitsUpdate([...habits, newHabit]);
+    await addHabitApi(newHabit);
   };
 
   // Filter out gym-related habit icons
@@ -645,36 +647,37 @@ export default function HabitsPage() {
   };
 
   const saveGoals = async (updatedGoals: Goal[]) => {
-    // Local state update only
+    setGoals(updatedGoals); // optimistic local update
+    for (const updatedGoal of updatedGoals) {
+      const original = apiGoals.find(g => g.id === updatedGoal.id);
+      if (!original || JSON.stringify(original) !== JSON.stringify(updatedGoal)) {
+        try {
+          await updateGoalApi({ id: updatedGoal.id, updates: updatedGoal });
+        } catch (e) { console.error('Failed to update goal', e); }
+      }
+    }
   };
 
-  const handleToggleSubGoal = (goalId: string, subGoalId: string) => {
+  const handleToggleSubGoal = async (goalId: string, subGoalId: string) => {
     const goal = goals.find(g => g.id === goalId);
     if (!goal) return;
     
-    const updatedGoal = {
-      ...goal,
-      subGoals: goal.subGoals.map(sg => 
-        sg.id === subGoalId 
-          ? { ...sg, completed: !sg.completed, completedAt: !sg.completed ? new Date().toISOString() : undefined }
-          : sg
-      ),
-      updatedAt: new Date().toISOString()
-    };
-    
-    const updatedGoals = goals.map(g => g.id === goalId ? updatedGoal : g);
-    setGoals(updatedGoals);
-    if (selectedGoal && selectedGoal.id === goalId) {
-      setSelectedGoal(updatedGoal);
-    }
-    saveGoals(updatedGoals);
+    const updatedSubGoals = goal.subGoals.map(sg => 
+      sg.id === subGoalId 
+        ? { ...sg, completed: !sg.completed, completedAt: !sg.completed ? new Date().toISOString() : undefined }
+        : sg
+    );
+    const updatedGoal = { ...goal, subGoals: updatedSubGoals, updatedAt: new Date().toISOString() };
+    setGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
+    if (selectedGoal && selectedGoal.id === goalId) setSelectedGoal(updatedGoal);
+    try { await updateGoalApi({ id: goalId, updates: { subGoals: updatedSubGoals } }); }
+    catch (e) { console.error(e); }
   };
 
-  const handleCreateGoal = () => {
+  const handleCreateGoal = async () => {
     if (!newGoalTitle.trim()) return;
 
-    const newGoal: Goal = {
-      id: `goal-${Date.now()}`,
+    const newGoalPayload: Omit<Goal, 'id' | 'createdAt' | 'updatedAt'> = {
       title: newGoalTitle.trim(),
       category: newGoalCategory,
       motive: newGoalMotive.trim(),
@@ -689,14 +692,11 @@ export default function HabitsPage() {
       notes: [],
       resources: [],
       linkedHabitIds: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
       archived: false
     };
 
-    const updatedGoals = [...goals, newGoal];
-    setGoals(updatedGoals);
-    saveGoals(updatedGoals);
+    const savedGoal = await addGoalApi(newGoalPayload);
+    setGoals(prev => [...prev, savedGoal]);
 
     // Reset form
     setNewGoalTitle('');

@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import type { Credential } from '@/types';
-import { P_PASSWORDS } from '@/lib/placeholder-data';
+import { useCredentials } from '@/hooks/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -114,8 +114,13 @@ function CredentialDialog({ isOpen, onOpenChange, onSave, credential }: { isOpen
 
 export default function PasswordManagerPage() {
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [credentials, setCredentials] = useState<Credential[]>([]);
+  const {
+    credentials,
+    isLoading,
+    addCredential: addCredentialApi,
+    updateCredential: updateCredentialApi,
+    deleteCredential: deleteCredentialApi,
+  } = useCredentials();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCredential, setEditingCredential] = useState<Credential | null>(null);
   const [visibilities, setVisibilities] = useState<Record<string, Record<string, boolean>>>({});
@@ -124,39 +129,23 @@ export default function PasswordManagerPage() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    setIsLoading(true);
-    // Mock data loading
-    setTimeout(() => {
-        setCredentials(P_PASSWORDS);
-        setIsLoading(false);
-    }, 500);
-  }, [user]);
-  
-  const saveCredentials = async (updatedCredentials: Credential[]) => {
-    if (!user) return;
-    console.log('Saving credentials:', updatedCredentials);
-  };
+  // Data loaded via useCredentials hook
 
-  const handleSaveCredential = (data: Omit<Credential, 'id' | 'lastUpdated'>, id?: string) => {
-    let updatedCredentials;
-    if (id) {
-      updatedCredentials = credentials.map(c => c.id === id ? { ...c, ...data, lastUpdated: new Date().toISOString().split('T')[0] } : c);
-    } else {
-      const newCredential: Credential = { id: `cred-${Date.now()}`, ...data, lastUpdated: new Date().toISOString().split('T')[0] };
-      updatedCredentials = [newCredential, ...credentials];
-    }
-    setCredentials(updatedCredentials);
-    saveCredentials(updatedCredentials);
+  const handleSaveCredential = async (data: Omit<Credential, 'id' | 'lastUpdated'>, id?: string) => {
+    const payload = { ...data, lastUpdated: new Date().toISOString().split('T')[0] };
+    try {
+      if (id) {
+        await updateCredentialApi({ id, updates: payload });
+      } else {
+        await addCredentialApi(payload as Omit<Credential, 'id'>);
+      }
+    } catch (e) { console.error(e); }
     setIsFormOpen(false);
     setEditingCredential(null);
   };
   
-  const handleDeleteCredential = (id: string) => {
-    const updatedCredentials = credentials.filter(c => c.id !== id);
-    setCredentials(updatedCredentials);
-    saveCredentials(updatedCredentials);
+  const handleDeleteCredential = async (id: string) => {
+    try { await deleteCredentialApi(id); } catch (e) { console.error(e); }
   };
 
   const handleToggleVisibility = (id: string, fieldName: string) => {

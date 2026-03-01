@@ -22,11 +22,11 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 
 const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_APP_ID,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
@@ -50,6 +50,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const useAuth = () => useContext(AuthContext);
+export type { FirebaseUser as User };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -57,36 +58,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
+    // Failsafe: if Firebase never responds, stop showing the spinner after 8s
+    const timeout = setTimeout(() => setLoading(false), 8000);
+
     const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      clearTimeout(timeout);
       setUser(authUser);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   const signInWithGoogle = async () => {
-    setLoading(true);
+    // Do NOT manipulate loading here — onAuthStateChanged owns the loading state.
+    // Setting loading=true then false would race with onAuthStateChanged and
+    // briefly expose loading=false + user=null, causing AppLayout to redirect.
     try {
       await signInWithPopup(auth, googleProvider);
-      // Removed Firestore seeding logic
     } catch (error) {
       console.error('Error signing in with Google', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
+    // onAuthStateChanged will fire with null and set loading=false automatically.
     try {
       await firebaseSignOut(auth);
       router.push('/login');
     } catch (error) {
       console.error('Error signing out', error);
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -1,10 +1,10 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import type { Notification } from '@/types';
-import { P_NOTIFICATIONS } from '@/lib/placeholder-data';
+import { useNotifications } from '@/hooks/api';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BellRing, Check, Mail, Trash2, Loader2 } from 'lucide-react';
@@ -37,40 +37,25 @@ function NotificationCard({ notification, onToggleRead, onDelete }: {
 
 export default function NotificationsPage() {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    notifications,
+    isLoading,
+    markAsRead: markAsReadApi,
+    markAllAsRead: markAllAsReadApi,
+    deleteNotification: deleteNotificationApi,
+  } = useNotifications();
 
-  useEffect(() => {
-    if (!user) return;
-    setIsLoading(true);
-    // Mock data loading
-    setTimeout(() => {
-        setNotifications(P_NOTIFICATIONS);
-        setIsLoading(false);
-    }, 500);
-  }, [user]);
-
-  const saveNotifications = async (updatedNotifications: Notification[]) => {
-      if (!user) return;
-      console.log('Saving notifications:', updatedNotifications);
-  };
-
-  const toggleReadStatus = (id: string) => {
-    const updated = notifications.map(n => (n.id === id ? { ...n, read: !n.read } : n));
-    setNotifications(updated);
-    saveNotifications(updated);
+  const toggleReadStatus = async (id: string) => {
+    const n = notifications.find(x => x.id === id);
+    if (n && !n.read) { try { await markAsReadApi(id); } catch (e) { console.error(e); } }
   };
   
-  const markAllAsRead = () => {
-    const updated = notifications.map(n => ({...n, read: true}));
-    setNotifications(updated);
-    saveNotifications(updated);
-  }
+  const markAllAsRead = async () => {
+    try { await markAllAsReadApi(); } catch (e) { console.error(e); }
+  };
 
-  const handleDeleteNotification = (id: string) => {
-    const updated = notifications.filter(n => n.id !== id);
-    setNotifications(updated);
-    saveNotifications(updated);
+  const handleDeleteNotification = async (id: string) => {
+    try { await deleteNotificationApi(id); } catch (e) { console.error(e); }
   };
 
   const { todays, future, past } = useMemo(() => {

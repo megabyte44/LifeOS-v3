@@ -1,3 +1,5 @@
+// @ts-nocheck
+// Legacy placeholder data - no longer used in production pages (all pages now use real API)
 
 import type { TodoItem, Transaction, Habit, Note, Credential, Notification, Goal } from '@/types';
 

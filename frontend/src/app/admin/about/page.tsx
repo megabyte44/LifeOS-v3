@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
 import { useAdminCheck } from '@/hooks/use-admin-check';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { AboutPageContent } from '@/types';
 import { Info, Save, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminAbout } from '@/hooks/api';
 
 const DEFAULT_CONTENT: AboutPageContent = {
   title: 'About LifeOS',
@@ -62,65 +62,23 @@ const DEFAULT_CONTENT: AboutPageContent = {
 };
 
 export default function AboutPageManagerPage() {
-  const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminCheck();
   const { toast } = useToast();
+  const { content: apiContent, isLoading: apiLoading, updateContent: updateContentApi } = useAdminAbout();
   const [content, setContent] = useState<AboutPageContent>(DEFAULT_CONTENT);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const loading = adminLoading || apiLoading;
 
-  useEffect(() => {
-    if (adminLoading) return;
-    if (!isAdmin) return;
-    loadContent();
-  }, [user, isAdmin, adminLoading]);
-
-  async function loadContent() {
-    if (!user) return;
-    
-    try {
-      // Mock data loading
-      setTimeout(() => {
-        setContent(DEFAULT_CONTENT);
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error('Error loading about content:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load content",
-        variant: "destructive"
-      });
-      setLoading(false);
-    }
-  }
+  useEffect(() => { if (apiContent) setContent(apiContent); }, [apiContent]);
 
   async function saveContent() {
-    if (!user) return;
-    
     setSaving(true);
     try {
-      const updatedContent = {
-        ...content,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.uid
-      };
-      
-      // Mock save
-      console.log('Saving about content:', updatedContent);
-      
-      setContent(updatedContent);
-      toast({
-        title: "Success",
-        description: "About page content saved!"
-      });
+      await updateContentApi({ ...content, updatedAt: new Date().toISOString() });
+      toast({ title: "Success", description: "About page content saved!" });
     } catch (error) {
       console.error('Error saving content:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save content",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to save content", variant: "destructive" });
     } finally {
       setSaving(false);
     }

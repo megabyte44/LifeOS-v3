@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,14 +15,11 @@ import type { PlannerItem } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/use-auth';
-
-// Mock data for initial state
-const MOCK_SCHEDULE: Record<string, PlannerItem[]> = {};
-daysOfWeek.forEach(day => { MOCK_SCHEDULE[day] = [] });
-
+import { usePlanner } from '@/hooks/api';
 
 const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+
 
 const getCurrentDayName = () => {
     const today = new Date();
@@ -48,10 +45,8 @@ const tagColors: Record<string, string> = {
 };
 
 export default function PlannerPage() {
-    const { user } = useAuth();
-    const [weeklySchedule, setWeeklySchedule] = useState<Record<string, PlannerItem[]>>({});
+    const { weeklySchedule, isLoading, addItem: addItemApi, updateItem: updateItemApi, deleteItem: deleteItemApi } = usePlanner();
     const [selectedDay, setSelectedDay] = useState(getCurrentDayName());
-    const [isLoading, setIsLoading] = useState(true);
     const [newItemTitle, setNewItemTitle] = useState('');
     const [newItemStartTime, setNewItemStartTime] = useState('09:00');
     const [newItemEndTime, setNewItemEndTime] = useState('10:00');
@@ -60,45 +55,19 @@ export default function PlannerPage() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
 
-    useEffect(() => {
-        if (!user) return;
-        setIsLoading(true);
-        // Mock data loading
-        setTimeout(() => {
-            setWeeklySchedule(MOCK_SCHEDULE);
-            setIsLoading(false);
-        }, 500);
-    }, [user]);
-
-    const saveSchedule = async (newSchedule: Record<string, PlannerItem[]>) => {
-        if (!user) return;
-        setWeeklySchedule(newSchedule);
-        console.log('Saving schedule:', newSchedule);
-    };
-    
-    const handleAddAdhocItem = () => {
+    const handleAddAdhocItem = async () => {
         if (!newItemTitle.trim() || newItemStartTime >= newItemEndTime) return;
         
         if (editingItem) {
             // Update existing item
-            const newSchedule = { ...weeklySchedule };
-            newSchedule[selectedDay] = (newSchedule[selectedDay] || []).map(item =>
-                item.id === editingItem.id
-                    ? { ...item, title: newItemTitle.trim(), startTime: newItemStartTime, endTime: newItemEndTime, tag: newItemTag.trim() || undefined }
-                    : item
-            ).sort((a, b) => a.startTime.localeCompare(b.startTime));
-            saveSchedule(newSchedule);
+            await updateItemApi({ day: selectedDay, id: editingItem.id, updates: { title: newItemTitle.trim(), startTime: newItemStartTime, endTime: newItemEndTime, tag: newItemTag.trim() || undefined } });
             setEditingItem(null);
         } else {
             // Add new item
             const daysToUpdate = newItemAddToAllWeek ? daysOfWeek : [selectedDay];
-            const newSchedule = { ...weeklySchedule };
-
-            daysToUpdate.forEach(day => {
-                const newItem: PlannerItem = { id: `${day.toLowerCase()}-${Date.now()}`, startTime: newItemStartTime, endTime: newItemEndTime, title: newItemTitle.trim(), tag: newItemTag.trim() || undefined, };
-                newSchedule[day] = [...(newSchedule[day] || []), newItem].sort((a, b) => a.startTime.localeCompare(b.startTime));
-            });
-            saveSchedule(newSchedule);
+            for (const day of daysToUpdate) {
+                await addItemApi({ day, item: { startTime: newItemStartTime, endTime: newItemEndTime, title: newItemTitle.trim(), tag: newItemTag.trim() || undefined } });
+            }
         }
         
         setNewItemTitle(''); 
@@ -123,10 +92,8 @@ export default function PlannerPage() {
         setNewItemEndTime(end);
     };
 
-    const handleDeleteAdhocItem = (day: string, itemId: string) => {
-        const newSchedule = { ...weeklySchedule };
-        newSchedule[day] = (newSchedule[day] || []).filter(item => item.id !== itemId);
-        saveSchedule(newSchedule);
+    const handleDeleteAdhocItem = async (day: string, itemId: string) => {
+        await deleteItemApi({ day, id: itemId });
     };
 
     const totalItems = Object.values(weeklySchedule).reduce((sum, items) => sum + items.length, 0);

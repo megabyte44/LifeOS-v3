@@ -4,7 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2, Wallet, CalendarCheck, ListChecks, GlassWater, Settings, TrendingUp, TrendingDown, DollarSign, Target, Clock, Droplets, CheckCircle2, Sunrise, Sunset, Moon, ArrowRight, CalendarClock, GripVertical, Activity, Beef, Pill, Flame, Award, Zap, Plus, Minus, Edit, Check, X, Sparkles } from 'lucide-react';
-import { P_TODO_ITEMS, P_HABITS, P_TRANSACTIONS } from '@/lib/placeholder-data';
+import { useHabits, useTransactions, useTodos } from '@/hooks/api';
 import type { PlannerItem, TodoItem, Habit, Transaction, UserPreferences, ProteinIntake, LoggedFoodItem } from '@/types';
 import { useState, useEffect } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -63,8 +63,7 @@ function SortableWidget({ id, children, span }: { id: string; children: React.Re
 }
 
 function WaterIntakeWidget({ now }: { now: Date }) {
-  const { user } = useAuth();
-  const [habits, setHabits] = useState<Habit[]>(P_HABITS);
+  const { habits, updateHabit: updateHabitApi } = useHabits();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const waterHabit = habits.find(h => h.icon === 'GlassWater');
@@ -74,35 +73,24 @@ function WaterIntakeWidget({ now }: { now: Date }) {
     if (waterHabit) setNewTargetInput(String(waterHabit.target || 8));
   }, [waterHabit]);
 
-  const handleHabitsUpdate = (updatedHabits: Habit[]) => {
-      setHabits(updatedHabits);
-  }
-
   const ML_PER_GLASS = 250;
   const TARGET_GLASSES = waterHabit?.target || 8;
   const WATER_TARGET_ML = TARGET_GLASSES * ML_PER_GLASS;
 
-  const handleIntakeChange = () => {
+  const handleIntakeChange = async () => {
     if (!waterHabit) return;
     const todayKey = format(now, 'yyyy-MM-dd');
-    const updatedHabits = habits.map(h => {
-      if (h.id === waterHabit.id) {
-        const newCompletions = { ...h.completions };
-        const currentCount = typeof newCompletions[todayKey] === 'number' ? (newCompletions[todayKey] as number) : 0;
-        newCompletions[todayKey] = currentCount + 1;
-        return { ...h, completions: newCompletions };
-      }
-      return h;
-    });
-    handleHabitsUpdate(updatedHabits);
+    const newCompletions = { ...waterHabit.completions };
+    const currentCount = typeof newCompletions[todayKey] === 'number' ? (newCompletions[todayKey] as number) : 0;
+    newCompletions[todayKey] = currentCount + 1;
+    await updateHabitApi({ id: waterHabit.id, updates: { completions: newCompletions } });
   };
   
-  const handleTargetSave = () => {
+  const handleTargetSave = async () => {
     if (!waterHabit) return;
     const newTarget = parseInt(newTargetInput, 10);
     if (!isNaN(newTarget) && newTarget > 0) {
-        const updatedHabits = habits.map(h => h.id === waterHabit.id ? { ...h, target: newTarget } : h);
-        handleHabitsUpdate(updatedHabits);
+        await updateHabitApi({ id: waterHabit.id, updates: { target: newTarget } });
         setIsSettingsOpen(false);
     }
   };
@@ -366,9 +354,7 @@ function TodaysPlan({ now }: { now: Date }) {
 }
 
 function FinancialSnapshot({ now }: { now: Date }) {
-  const { user } = useAuth();
-  const [transactions, setTransactions] = useState<Transaction[]>(P_TRANSACTIONS);
-  const [monthlyBudget, setMonthlyBudget] = useState(5000000);
+  const { transactions, monthlyBudget } = useTransactions();
 
   const todaysExpenses = transactions.filter(t => t.type === 'expense' && isSameDay(parseISO(t.date), now)).reduce((sum, t) => sum + t.amount, 0);
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -471,33 +457,19 @@ function FinancialSnapshot({ now }: { now: Date }) {
 }
 
 function TodoList() {
-    const { user } = useAuth();
-    const [todos, setTodos] = useState<TodoItem[]>(P_TODO_ITEMS);
+    const { todos, addTodo: addTodoApi, updateTodo: updateTodoApi, deleteTodo: deleteTodoApi } = useTodos();
     const [isAddTodoDialogOpen, setIsAddTodoDialogOpen] = useState(false);
     const [newTodoText, setNewTodoText] = useState('');
     const [newTodoPriority, setNewTodoPriority] = useState<'high' | 'medium' | 'low'>('low');
 
-    const handleTodosUpdate = (updatedTodos: TodoItem[]) => {
-        setTodos(updatedTodos);
+    const toggleTodo = async (id: string) => {
+        const todo = todos.find(t => t.id === id);
+        if (todo) await updateTodoApi({ id, updates: { completed: !todo.completed } });
     };
-
-    const toggleTodo = (id: string) => handleTodosUpdate(todos.map(todo => todo.id === id ? { ...todo, completed: !todo.completed } : todo));
-    const deleteTodo = (id: string) => handleTodosUpdate(todos.filter(todo => todo.id !== id));
+    const deleteTodo = async (id: string) => deleteTodoApi(id);
     
-    const postponeTodo = (id: string) => {
-        const updatedTodos = todos.map(todo => {
-            if (todo.id === id) {
-                // Mark as postponed and move to end of the list
-                return { ...todo, postponed: true };
-            }
-            return todo;
-        });
-        // Move the postponed todo to the end
-        const postponedTodo = updatedTodos.find(t => t.id === id);
-        const otherTodos = updatedTodos.filter(t => t.id !== id);
-        if (postponedTodo) {
-            handleTodosUpdate([...otherTodos, postponedTodo]);
-        }
+    const postponeTodo = async (id: string) => {
+        await updateTodoApi({ id, updates: { postponed: true } });
     };
 
     const isTaskMissed = (todo: TodoItem): boolean => {
@@ -513,10 +485,9 @@ function TodoList() {
         return false;
     };
     
-    const addTodo = () => {
+    const addTodo = async () => {
         if (newTodoText.trim() === '') return;
-        const newTodo: TodoItem = { id: `todo-${Date.now()}`, text: newTodoText.trim(), completed: false, priority: newTodoPriority };
-        handleTodosUpdate([newTodo, ...todos]);
+        await addTodoApi({ text: newTodoText.trim(), completed: false, priority: newTodoPriority });
         setNewTodoText(''); setNewTodoPriority('low'); setIsAddTodoDialogOpen(false);
     };
 
@@ -768,7 +739,7 @@ function ProteinIntakeWidget() {
   const [proteinTarget, setProteinTarget] = useState(150);
   const todayKey = format(new Date(), 'yyyy-MM-dd');
 
-  const todaysIntakes = proteinIntakes.filter(i => i.date === todayKey);
+  const todaysIntakes = proteinIntakes.filter(i => i.timestamp?.startsWith(todayKey));
   const totalProtein = todaysIntakes.reduce((sum, item) => sum + item.amount, 0);
   const progress = Math.min(100, Math.round((totalProtein / proteinTarget) * 100));
 
@@ -844,7 +815,7 @@ function SupplementIntakeWidget() {
   const [customItems, setCustomItems] = useState<string[]>(['Protein Powder', 'Creatine', 'Multivitamin', 'Omega-3', 'Vitamin D']);
   const todayKey = format(new Date(), 'yyyy-MM-dd');
 
-  const todaysSupplements = loggedItems.filter(i => i.date === todayKey);
+  const todaysSupplements = loggedItems.filter(i => i.timestamp?.startsWith(todayKey));
   const takenSupplements = Array.from(new Set(todaysSupplements.map(item => item.name)));
   const notTakenSupplements = customItems.filter(item => !takenSupplements.includes(item));
 
@@ -986,53 +957,6 @@ export default function DashboardPage() {
         delay: 250,
         tolerance: 5,
       },
-    })
-  );
-  const router = useRouter();
-  const [username, setUsername] = useState<string | null>(null);
-  const [greeting, setGreeting] = useState('');
-  const [now, setNow] = useState(new Date());
-  const [preferences, setPreferences] = useState<UserPreferences>({
-    features: {
-      waterIntake: true,
-      todaysPlan: true,
-      financialSnapshot: true,
-      todoList: true,
-      habitStreaks: true,
-      gymTracker: false,
-      proteinIntake: false,
-      foodSupplements: false,
-      overloadTracker: true,
-      gymProteinIntake: true,
-      gymFoodSupplements: true,
-      proteinIntakeWidget: false,
-      supplementIntakeWidget: false,
-    }
-  });
-  const [widgetOrder, setWidgetOrder] = useState<string[]>([
-    'habitStreaks',
-    'waterIntake',
-    'todaysPlan',
-    'financialSnapshot',
-    'todoList'
-  ]);
-
-  // Onboarding state
-  const [showDashboardTour, setShowDashboardTour] = useState(false);
-  const [showProfileTour, setShowProfileTour] = useState(false);
-  const [showGymPreferences, setShowGymPreferences] = useState(false);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -1100,9 +1024,67 @@ export default function DashboardPage() {
   const handleSkipOnboarding = async () => {
     setShowDashboardTour(false);
     setShowProfileTour(false);
-    setShowGymPreferences(false
-        )}
+    setShowGymPreferences(false);
+  };
 
+  // Widget configuration mapping
+  const widgetConfig: Record<string, { component: React.ReactNode; span: string }> = {
+    habitStreaks: {
+      component: (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500/20 to-red-500/20">
+                <Flame className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-headline">Habit Streaks</CardTitle>
+                <CardDescription className="text-xs">Track your daily habits</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground text-center py-4">Visit the Habits page to track your streaks</p>
+          </CardContent>
+        </Card>
+      ),
+      span: 'lg:col-span-1',
+    },
+    waterIntake: {
+      component: <WaterIntakeWidget now={now} />,
+      span: 'lg:col-span-1',
+    },
+    todaysPlan: {
+      component: <TodaysPlan now={now} />,
+      span: 'lg:col-span-2',
+    },
+    financialSnapshot: {
+      component: <FinancialSnapshot now={now} />,
+      span: 'lg:col-span-1',
+    },
+    todoList: {
+      component: <TodoList />,
+      span: 'lg:col-span-2',
+    },
+    proteinIntakeWidget: {
+      component: <ProteinIntakeWidget />,
+      span: 'lg:col-span-1',
+    },
+    supplementIntakeWidget: {
+      component: <SupplementIntakeWidget />,
+      span: 'lg:col-span-1',
+    },
+  };
+
+  // Filter visible widgets based on preferences
+  const visibleWidgets = widgetOrder.filter((widgetId) => {
+    const featureKey = widgetId as keyof typeof preferences.features;
+    return preferences.features[featureKey] !== false;
+  });
+
+  return (
+    <AppLayout>
+      <div className="space-y-4">
         <header className="space-y-2">
           {username ? (
             <div className="space-y-1">

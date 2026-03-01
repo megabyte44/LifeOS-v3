@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { AiConfiguration } from '@/types';
 import { Bot, Save, RotateCcw, AlertCircle, Key, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminAiConfig } from '@/hooks/api';
 
 const DEFAULT_CONFIG: AiConfiguration = {
   systemInstructions: {
@@ -46,67 +47,26 @@ export default function AiConfigPage() {
   const { user } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdminCheck();
   const { toast } = useToast();
+  const { config: apiConfig, isLoading: apiLoading, updateConfig: updateConfigApi } = useAdminAiConfig();
   const [config, setConfig] = useState<AiConfiguration>(DEFAULT_CONFIG);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const loading = adminLoading || apiLoading;
   const [showApiKeys, setShowApiKeys] = useState({
     openrouter: false,
     gemini: false,
     openai: false
   });
 
-  useEffect(() => {
-    if (adminLoading) return;
-    if (!isAdmin) return;
-    loadConfig();
-  }, [user, isAdmin, adminLoading]);
-
-  async function loadConfig() {
-    if (!user) return;
-    
-    try {
-      // Mock data loading
-      setTimeout(() => {
-        setConfig(DEFAULT_CONFIG);
-        setLoading(false);
-      }, 500);
-    } catch (error) {
-      console.error('Error loading AI config:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load configuration",
-        variant: "destructive"
-      });
-      setLoading(false);
-    }
-  }
+  useEffect(() => { if (apiConfig) setConfig(apiConfig); }, [apiConfig]);
 
   async function saveConfig() {
-    if (!user) return;
-    
     setSaving(true);
     try {
-      const updatedConfig = {
-        ...config,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.uid
-      };
-      
-      // Mock save
-      console.log('Saving AI config:', updatedConfig);
-      
-      setConfig(updatedConfig);
-      toast({
-        title: "Success",
-        description: "Configuration saved! Changes take effect immediately."
-      });
+      await updateConfigApi({ ...config, updatedAt: new Date().toISOString(), updatedBy: user?.uid || 'admin' });
+      toast({ title: "Success", description: "Configuration saved! Changes take effect immediately." });
     } catch (error) {
       console.error('Error saving AI config:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save configuration",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to save configuration", variant: "destructive" });
     } finally {
       setSaving(false);
     }

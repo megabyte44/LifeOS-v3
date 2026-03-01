@@ -48,6 +48,8 @@ public class TodoService {
     }
 
     // ── Helper: Get user or throw 404 ──
+    // User is guaranteed to exist: FirebaseAuthenticationFilter calls
+    // UserService.ensureUserExists() before any controller runs.
     private User getUser(String userUid) {
         return userRepository.findById(userUid)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "uid", userUid));

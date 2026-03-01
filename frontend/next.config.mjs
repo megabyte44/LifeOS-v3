@@ -38,9 +38,6 @@ const nextConfig = {
   // Enable React strict mode for better development
   reactStrictMode: true,
   
-  // Optimize for production
-  swcMinify: true,
-  
   // Compiler optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? {
@@ -57,9 +54,6 @@ const nextConfig = {
   
   // Enable compression
   compress: true,
-  
-  // Optimize fonts
-  optimizeFonts: true,
   
   eslint: {
     // Warning: This allows production builds to successfully complete even if

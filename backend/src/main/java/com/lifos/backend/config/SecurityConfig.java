@@ -1,29 +1,37 @@
 package com.lifos.backend.config;
 
+import com.lifos.backend.security.FirebaseAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Spring Security Configuration.
+ * Spring Security Configuration — Phase 2: Firebase Auth enabled.
  *
- * KEY CONCEPT:
- * - Spring Security intercepts EVERY HTTP request by default and blocks it
- *   unless you configure who can access what.
- * - SecurityFilterChain is where you define the rules:
- *   - Which paths are public vs authenticated
- *   - Session management (stateless for REST APIs)
- *   - CSRF protection (disabled for REST APIs that use Bearer tokens)
+ * KEY CONCEPTS:
+ * - addFilterBefore(firebaseFilter, UsernamePasswordAuthenticationFilter.class)
+ *     → Our Firebase filter runs BEFORE Spring's default auth filter.
+ *     → Firebase verifies the token and sets the SecurityContext.
+ *     → Spring's auth filter then sees an already-authenticated context.
  *
- * PHASE 1: We PERMIT ALL requests (no auth yet) so we can test CRUD easily.
- * PHASE 2: We'll add the Firebase auth filter here.
+ * - authorizeHttpRequests:
+ *     /api/** → requires authentication (401 if no valid Bearer token)
+ *     everything else → open (health checks, static assets, etc.)
  */
 @Configuration
 @EnableWebSecurity
+@org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
 public class SecurityConfig {
+
+    private final FirebaseAuthenticationFilter firebaseAuthFilter;
+
+    public SecurityConfig(FirebaseAuthenticationFilter firebaseAuthFilter) {
+        this.firebaseAuthFilter = firebaseAuthFilter;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -36,9 +44,12 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
 
-            // PHASE 1: Allow all requests (no authentication required)
-            // PHASE 2: We'll change this to require auth for /api/**
+            // Add our Firebase filter before Spring's default auth filter
+            .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
+
+            // All /api/** endpoints require a valid Firebase Bearer token
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             );
 
