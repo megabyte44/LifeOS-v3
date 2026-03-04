@@ -7,9 +7,9 @@ spring:
 
   # ── PostgreSQL Datasource ──
   datasource:
-    url: jdbc:postgresql://localhost:5432/lifeos
-    username: postgres
-    password: 365210
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lifeos}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:365210}
     driver-class-name: org.postgresql.Driver
 
   # ── JPA / Hibernate ──
@@ -30,24 +30,17 @@ spring:
     baseline-on-migrate: true
 
 # ── Firebase ──
-# Download your service account JSON from:
-#   Firebase Console → Project Settings → Service Accounts → Generate new private key
-# Save it as: src/main/resources/firebase-service-account.json
 firebase:
   service-account-path: classpath:firebase-service-account.json
 
 # ── Encryption ──
-# AES-256-GCM key for credential vault encryption.
-# IMPORTANT: Keep this secret — rotate if compromised.
 encryption:
-  secret-key: YpBF7EZwmKRB75WR2czHQSMaD3jOg4fVsui2Ip1ld+I=
+  secret-key: ${ENCRYPTION_SECRET_KEY:YpBF7EZwmKRB75WR2czHQSMaD3jOg4fVsui2Ip1ld+I=}
 
 # ── VAPID (Web Push) ──
-# Generate VAPID keys: npx web-push generate-vapid-keys
-# Set these values, and also set NEXT_PUBLIC_VAPID_PUBLIC_KEY in frontend .env.local
 vapid:
-  public-key: ""
-  private-key: ""
+  public-key: ${VAPID_PUBLIC_KEY:}
+  private-key: ${VAPID_PRIVATE_KEY:}
   subject: "mailto:admin@lifeos.app"
 
 # ── Logging ──

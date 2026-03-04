@@ -12,10 +12,15 @@ function makeQueryClient() {
         staleTime: 2 * 60 * 1000,
         // Cache unused data for 5 minutes
         gcTime: 5 * 60 * 1000,
-        // Retry failed requests up to 2 times
-        retry: 2,
-        // Refetch on window focus in production only
-        refetchOnWindowFocus: process.env.NODE_ENV === 'production',
+        // Only retry once, and never retry on network/timeout errors (connection refused won't magically succeed)
+        retry: (failureCount, error) => {
+          if (failureCount >= 1) return false;
+          if (error instanceof TypeError) return false; // network error / CORS
+          if (error instanceof DOMException && error.name === 'TimeoutError') return false;
+          return true;
+        },
+        // Don't refetch on every tab switch — staleTime already handles freshness
+        refetchOnWindowFocus: false,
       },
       mutations: {
         retry: 0,

@@ -1,9 +1,19 @@
 export type PlannerItem = {
-  id:string;
+  id: string;
   startTime: string; // "HH:mm"
-  endTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
   title: string;
   tag?: string;
+  colorLabel?: string; // hex color accent on the card
+  repeat?: {
+    type: 'none' | 'daily' | 'weekdays' | 'custom' | 'interval';
+    days?: string[]; // for type=custom, e.g. ['Monday','Wednesday']
+    intervalDays?: number; // for type=interval
+  };
+  reminder?: {
+    enabled: boolean;
+    offsetMinutes: number; // how many minutes before to fire push notification
+  };
 };
 
 export type TodoItem = {

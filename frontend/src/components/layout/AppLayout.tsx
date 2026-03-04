@@ -16,14 +16,11 @@ import {
   CalendarDays,
   Bell,
   Loader2,
-  Bot,
   User as UserIcon,
   Shield,
-  CheckCircle2,
-  Sunrise,
-  Sunset,
-  Clock,
   Dumbbell,
+  Target,
+  CalendarCheck,
 } from 'lucide-react';
 import { AnvilIcon } from '@/components/ui/anvil-icon';
 import {
@@ -41,21 +38,41 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { format, parseISO, isSameDay, isFuture } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Notification, Habit } from '@/types';
+import type { Notification } from '@/types';
 import { useAuth, User } from '@/hooks/use-auth';
-// Removed: useAdminCheck, useOfflineQueue, useSafeFirestore, QueueSyncIndicator
+import { useAdminCheck } from '@/hooks/use-admin-check';
+
+// ─── Theme helpers ────────────────────────────────────────────────────────────
+export const THEME_CLASSES = [
+  'theme-indigo',
+  'theme-charcoal-yellow',
+  'theme-lavendar',
+  'theme-lemonade',
+  'theme-sunset',
+  'theme-dreamy',
+  'theme-crimson',
+  'theme-forest',
+  'theme-midnight',
+  'theme-aurora',
+  'theme-rose',
+] as const;
+
+export type ThemeName = 'default' | (typeof THEME_CLASSES)[number];
+
+export function applyTheme(theme: ThemeName) {
+  const root = document.documentElement;
+  THEME_CLASSES.forEach((cls) => root.classList.remove(cls));
+  if (theme !== 'default') root.classList.add(theme);
+  localStorage.setItem('lifeos-theme', theme);
+}
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/expenses', icon: Wallet, label: 'Expenses' },
   { href: '/habits', icon: AnvilIcon, label: 'Forge' },
   { href: '/notes', icon: StickyNote, label: 'Notes' },
+  { href: '/gym', icon: Dumbbell, label: 'Gym' },
 ];
 
 function DesktopSidebar() {
@@ -73,7 +90,7 @@ function DesktopSidebar() {
       </div>
       
       {/* Navigation */}
-      <nav className="flex-1 flex flex-col gap-1">
+      <nav className="flex-1 flex flex-col gap-1 overflow-y-auto scrollbar-hide">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -87,8 +104,7 @@ function DesktopSidebar() {
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent hover:scale-105'
               )}
             >
-              <item.icon className={cn("transition-all duration-200", isActive ? "h-6 w-6" : "h-5 w-5")} />
-              
+              <item.icon className={cn('transition-all duration-200', isActive ? 'h-6 w-6' : 'h-5 w-5')} />
               <div className="absolute left-full ml-3 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap border shadow-lg z-50">
                 {item.label}
                 <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-2 h-2 bg-popover border-l border-t rotate-45"></div>
@@ -96,21 +112,20 @@ function DesktopSidebar() {
             </Link>
           );
         })}
-        
-        {/* AI Chat Link */}
+
+        {/* Goals */}
         <Link
-          href="/ai-chat"
+          href="/goals"
           className={cn(
             'flex items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 group relative',
-            pathname === '/ai-chat'
+            pathname === '/goals'
               ? 'bg-primary text-primary-foreground shadow-lg scale-105'
               : 'text-muted-foreground hover:text-foreground hover:bg-accent hover:scale-105'
           )}
         >
-          <Bot className={cn("transition-all duration-200", pathname === '/ai-chat' ? "h-6 w-6" : "h-5 w-5")} />
-          
+          <Target className={cn('transition-all duration-200', pathname === '/goals' ? 'h-6 w-6' : 'h-5 w-5')} />
           <div className="absolute left-full ml-3 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap border shadow-lg z-50">
-            AI Chat
+            Goals
             <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-2 h-2 bg-popover border-l border-t rotate-45"></div>
           </div>
         </Link>
@@ -144,20 +159,20 @@ function BottomNav() {
   const pathname = usePathname();
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur-sm">
-      <div className="flex justify-around h-16 items-center">
+      <div className="flex h-16 items-stretch overflow-x-auto scrollbar-hide snap-x">
         {navItems.map((item) => (
           <Link
             href={item.href}
             key={item.href}
             className={cn(
-              'flex flex-col items-center justify-center gap-1 text-sm transition-colors',
+              'flex flex-col items-center justify-center gap-0.5 min-w-[4.2rem] flex-1 snap-start transition-colors px-1',
               pathname === item.href
                 ? 'text-primary font-medium'
                 : 'text-muted-foreground hover:text-primary'
             )}
           >
-            <item.icon className="h-5 w-5" />
-            <span>{item.label}</span>
+            <item.icon className="h-[18px] w-[18px]" />
+            <span className="text-[10px] leading-tight">{item.label}</span>
           </Link>
         ))}
       </div>
@@ -166,72 +181,96 @@ function BottomNav() {
 }
 
 function ThemeToggle() {
-  const [theme, setTheme] = useState('light');
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    setTheme(isDark ? 'dark' : 'light');
+    setIsDark(document.documentElement.classList.contains('dark'));
   }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+  const toggle = () => {
+    const next = !isDark;
+    setIsDark(next);
+    localStorage.setItem('theme', next ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', next);
   };
 
   return (
-      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          <div className="flex items-center justify-between w-full">
-              <div className="flex items-center">
-                  {theme === 'light' ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-                  <span>Dark Mode</span>
-              </div>
-              <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} aria-label="Toggle dark mode" />
-          </div>
-      </DropdownMenuItem>
+    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+      <div className="flex items-center justify-between w-full">
+        <div className="flex items-center">
+          {isDark ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
+          <span>Dark Mode</span>
+        </div>
+        <Switch checked={isDark} onCheckedChange={toggle} aria-label="Toggle dark mode" />
+      </div>
+    </DropdownMenuItem>
   );
 }
 
-function UserNav({ user, onLogout }: { user: User, onLogout: () => void }) {
+function UserNav({ user, onLogout }: { user: User; onLogout: () => void }) {
   const router = useRouter();
-  // Mock admin check
-  const isAdmin = user.email ? user.email.includes('admin') : false;
+  const { isAdmin } = useAdminCheck();
   
-  if (!user) return <Skeleton className="h-8 w-8 rounded-full" />;
+  if (!user) return <Skeleton className="h-9 w-9 rounded-full" />;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
+        <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
+          <Avatar className="h-9 w-9 ring-2 ring-primary/20">
             <AvatarImage src={user.photoURL || undefined} alt="User Avatar" />
-            <AvatarFallback>{user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+              {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+            </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-2">
-            <p className="text-sm font-medium leading-none">{user.displayName || user.email}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              Welcome back!
-            </p>
+        {/* User info */}
+        <DropdownMenuLabel className="font-normal py-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+              <AvatarImage src={user.photoURL || undefined} />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col">
+              <p className="text-sm font-semibold leading-none">{user.displayName || 'User'}</p>
+              <p className="text-xs leading-none text-muted-foreground mt-1 truncate max-w-[140px]">
+                {user.email}
+              </p>
+            </div>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-           <DropdownMenuItem onSelect={() => router.push('/profile')}>
-              <UserCog className="mr-2 h-4 w-4" />
-              <span>Edit Profile</span>
-            </DropdownMenuItem>
-           <DropdownMenuItem onSelect={() => router.push('/planner')}>
+          <DropdownMenuItem onSelect={() => router.push('/profile')}>
+            <UserCog className="mr-2 h-4 w-4" />
+            <span>Edit Profile</span>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={() => router.push('/planner')}>
             <CalendarDays className="mr-2 h-4 w-4" />
             <span>Daily Planner</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => router.push('/habits')}>
+            <AnvilIcon className="mr-2 h-4 w-4" />
+            <span>Habits &amp; Forge</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => router.push('/goals')}>
+            <Target className="mr-2 h-4 w-4" />
+            <span>Goals</span>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push('/gym')}>
             <Dumbbell className="mr-2 h-4 w-4" />
             <span>Gym Tracker</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => router.push('/reminders')}>
+            <CalendarCheck className="mr-2 h-4 w-4" />
+            <span>Reminders</span>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push('/password-manager')}>
             <KeyRound className="mr-2 h-4 w-4" />
@@ -256,16 +295,16 @@ function UserNav({ user, onLogout }: { user: User, onLogout: () => void }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push('/about')}>
           <UserIcon className="mr-2 h-4 w-4" />
-          <span>About Me</span>
+          <span>About</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onLogout}>
+        <DropdownMenuItem onClick={onLogout} className="text-destructive focus:text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
+  );
 }
 
 function NotificationBell() {
@@ -308,341 +347,38 @@ function NotificationBell() {
   );
 }
 
-function HeaderCalendar() {
-  const { user } = useAuth();
-  const [date, setDate] = useState<Date>();
-  const [title, setTitle] = useState('');
-  const [message, setMessage] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-
-  const minSwipeDistance = 50;
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    
-    if (isLeftSwipe) {
-      setCurrentMonth(prev => {
-        const next = new Date(prev);
-        next.setMonth(next.getMonth() + 1);
-        return next;
-      });
-    }
-    
-    if (isRightSwipe) {
-      setCurrentMonth(prev => {
-        const next = new Date(prev);
-        next.setMonth(next.getMonth() - 1);
-        return next;
-      });
-    }
-  };
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    
-    const days = [];
-    
-    const prevMonth = new Date(year, month, 0);
-    const prevMonthDays = prevMonth.getDate();
-    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-      days.push({
-        date: new Date(year, month - 1, prevMonthDays - i),
-        isCurrentMonth: false
-      });
-    }
-    
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push({
-        date: new Date(year, month, i),
-        isCurrentMonth: true
-      });
-    }
-    
-    const remainingDays = 42 - days.length;
-    for (let i = 1; i <= remainingDays; i++) {
-      days.push({
-        date: new Date(year, month + 1, i),
-        isCurrentMonth: false
-      });
-    }
-    
-    return days;
-  };
-
-  const handleAddReminder = async () => {
-    // Placeholder: Connect to backend
-    console.log('Replacing Firebase: Add reminder', { title, message, date });
-    setDate(undefined);
-    setTitle('');
-    setMessage('');
-  };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  const isSameDate = (d1: Date, d2: Date | undefined) => {
-    if (!d2) return false;
-    return d1.getDate() === d2.getDate() && 
-           d1.getMonth() === d2.getMonth() && 
-           d1.getFullYear() === d2.getFullYear();
-  };
-  
-  const isToday = (d: Date) => {
-    return d.getDate() === today.getDate() && 
-           d.getMonth() === today.getMonth() && 
-           d.getFullYear() === today.getFullYear();
-  };
-  
-  const isPast = (d: Date) => d < today;
-  
-  const days = getDaysInMonth(currentMonth);
-  const weekDays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-
-  return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 relative">
-          <CalendarDays className="h-5 w-5" />
-          <span className="sr-only">Open calendar</span>
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden max-h-[90vh]">
-        <DialogHeader className="px-3 sm:px-4 pt-3 pb-2 border-b">
-          <DialogTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-            Calendar & Reminders
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="p-3 sm:p-4 space-y-3 overflow-y-auto">
-          {date && (isFuture(date) || isSameDay(date, today)) && (
-            <div className="bg-gradient-to-br from-primary/5 to-transparent border border-primary/20 rounded-lg p-2.5 sm:p-4 space-y-2 sm:space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-xs sm:text-sm flex items-center gap-1.5">
-                  <Bell className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-                  <span className="line-clamp-1">
-                    Add Reminder for {format(date, 'MMM d, yyyy')}
-                  </span>
-                </h4>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setDate(undefined)}
-                  className="h-5 w-5 sm:h-6 sm:w-6 p-0 shrink-0 text-xs"
-                >
-                  
-                </Button>
-              </div>
-              
-              <div className="space-y-1.5 sm:space-y-2">
-                <div className="space-y-1">
-                  <Label htmlFor="reminder-title" className="text-xs font-medium">
-                    Title
-                  </Label>
-                  <Input 
-                    id="reminder-title" 
-                    placeholder="e.g., Mom's Birthday" 
-                    value={title} 
-                    onChange={(e) => setTitle(e.target.value)} 
-                    className="h-8 sm:h-9 text-xs sm:text-sm"
-                  />
-                </div>
-                
-                <div className="space-y-1">
-                  <Label htmlFor="reminder-message" className="text-xs font-medium">
-                    Message
-                  </Label>
-                  <Textarea 
-                    id="reminder-message" 
-                    placeholder="e.g., Call her in the morning" 
-                    value={message} 
-                    onChange={(e) => setMessage(e.target.value)} 
-                    className="min-h-[50px] sm:min-h-[60px] resize-none text-xs sm:text-sm"
-                  />
-                </div>
-                
-                <Button 
-                  size="sm"
-                  className="w-full h-8 sm:h-9 text-xs sm:text-sm font-semibold" 
-                  onClick={handleAddReminder} 
-                  disabled={!user || !title.trim() || !message.trim()}
-                >
-                  <Bell className="mr-1 sm:mr-1.5 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  Set Reminder
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="w-full">
-            <div className="bg-card border rounded-lg shadow-lg overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentMonth(prev => {
-                    const next = new Date(prev);
-                    next.setMonth(next.getMonth() - 1);
-                    return next;
-                  })}
-                  className="h-8 w-8 p-0 hover:bg-primary/10"
-                >
-                  
-                </Button>
-                
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-base sm:text-lg">
-                    {format(currentMonth, 'MMMM yyyy')}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCurrentMonth(new Date())}
-                    className="h-6 text-xs px-2 hidden sm:flex"
-                  >
-                    Today
-                  </Button>
-                </div>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCurrentMonth(prev => {
-                    const next = new Date(prev);
-                    next.setMonth(next.getMonth() + 1);
-                    return next;
-                  })}
-                  className="h-8 w-8 p-0 hover:bg-primary/10"
-                >
-                  
-                </Button>
-              </div>
-              
-              <div 
-                className="p-2 sm:p-4 select-none touch-pan-y"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-              >
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {weekDays.map(day => (
-                    <div key={day} className="text-center text-xs sm:text-sm font-semibold text-muted-foreground py-2">
-                      {day}
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="grid grid-cols-7 gap-1">
-                  {days.map((day, index) => {
-                    const isSelected = isSameDate(day.date, date);
-                    const isTodayDate = isToday(day.date);
-                    const isPastDate = isPast(day.date);
-                    const isDisabled = isPastDate && !isTodayDate;
-                    
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => {
-                          if (!isDisabled && day.isCurrentMonth) {
-                            setDate(day.date);
-                          }
-                        }}
-                        disabled={isDisabled}
-                        className={cn(
-                          "aspect-square flex items-center justify-center rounded-lg text-sm sm:text-base font-medium transition-all",
-                          "hover:bg-accent active:scale-95",
-                          !day.isCurrentMonth && "text-muted-foreground/40",
-                          day.isCurrentMonth && !isDisabled && "text-foreground",
-                          isDisabled && "text-muted-foreground/30 cursor-not-allowed hover:bg-transparent",
-                          isTodayDate && !isSelected && "bg-accent font-bold ring-2 ring-primary",
-                          isSelected && "bg-primary text-primary-foreground font-bold shadow-lg scale-105",
-                          !isSelected && !isTodayDate && !isDisabled && "hover:scale-105"
-                        )}
-                      >
-                        {day.date.getDate()}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// HeaderCalendar is now a simple icon button navigating to /reminders
 
 function ThemeController() {
-  // Placeholder for real theme fetching
+  useEffect(() => {
+    // Apply dark/light mode
+    const savedMode = localStorage.getItem('theme');
+    if (savedMode === 'dark') document.documentElement.classList.add('dark');
+    else if (savedMode === 'light') document.documentElement.classList.remove('dark');
+
+    // Apply colour theme
+    const savedTheme = (localStorage.getItem('lifeos-theme') as ThemeName) ?? 'default';
+    THEME_CLASSES.forEach((cls) => document.documentElement.classList.remove(cls));
+    if (savedTheme !== 'default') document.documentElement.classList.add(savedTheme);
+  }, []);
+
   return null;
 }
 
-function AIAssistanceButton() {
+function HeaderCalendar() {
   const router = useRouter();
-
   return (
-    <Button 
-      variant="ghost" 
-      size="icon" 
-      className="h-8 w-8 relative"
-      onClick={() => router.push('/ai-chat')}
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8"
+      onClick={() => router.push('/reminders')}
+      title="Reminders & Calendar"
     >
-      <Bot className="h-4 w-4" />
-      <div className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full animate-pulse" />
-      <span className="sr-only">AI Assistant</span>
+      <CalendarDays className="h-4 w-4" />
+      <span className="sr-only">Open reminders</span>
     </Button>
   );
-}
-
-function QuickCheckInModal() {
-  // Mock Implementation
-  const [isOpen, setIsOpen] = useState(false);
-  const habits: Habit[] = []; // Empty for now
-
-  return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="hover:bg-primary/10 hover:text-primary hover:border-primary"
-        >
-          <CheckCircle2 className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-            <DialogTitle>Quick Check-In</DialogTitle>
-        </DialogHeader>
-        <div className="py-4 text-center">
-            <p>Habits tracking coming soon with backend integration.</p>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -681,17 +417,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <DesktopSidebar />
       
       <div className="md:ml-16 flex flex-col min-h-screen">
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-4 border-b bg-background/95 px-4 sm:px-6 backdrop-blur-sm">
-          <h1 className="font-headline text-lg font-bold text-primary">LifeOS</h1>
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 sm:px-6 backdrop-blur-sm">
+          <h1 className="font-headline text-lg font-bold tracking-tight">
+            <span className="text-primary">Life</span>
+            <span className="text-foreground">OS</span>
+          </h1>
           <div className="flex-1" />
-          
-          <QuickCheckInModal />
-          <AIAssistanceButton />
           <NotificationBell />
           <HeaderCalendar />
           <UserNav user={user} onLogout={handleLogout} />
         </header>
-        <main className="flex-1 p-4 md:p-6 pb-24 md:pb-4">
+        <main className="flex-1 p-4 md:p-6 pb-24 md:pb-6">
           {children}
         </main>
       </div>

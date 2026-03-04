@@ -1,0 +1,31 @@
+# ── Stage 1: Build ──
+FROM eclipse-temurin:17-jdk-alpine AS builder
+
+WORKDIR /build
+
+# Copy Maven wrapper & pom first (layer-cached dependency download)
+COPY mvnw mvnw
+COPY .mvn .mvn
+COPY pom.xml pom.xml
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
+
+# Copy source and build the fat JAR (skip tests – they need a running DB)
+COPY src src
+RUN ./mvnw package -DskipTests -B
+
+# ── Stage 2: Runtime ──
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+# Create a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY --from=builder /build/target/backend-0.0.1-SNAPSHOT.jar app.jar
+
+# Switch to non-root
+USER appuser
+
+EXPOSE 8000
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
