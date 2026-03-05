@@ -199,16 +199,11 @@ export default function PasswordManagerPage() {
     'Other': 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300' 
   };
   
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading Vault...</p></div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading Vault...</p></div>
+      ) : (
       <div className="space-y-4">
         {/* Header with Search */}
         <div className="flex flex-col gap-3">
@@ -507,6 +502,7 @@ export default function PasswordManagerPage() {
 
         <CredentialDialog isOpen={isFormOpen} onOpenChange={setIsFormOpen} onSave={handleSaveCredential} credential={editingCredential} />
       </div>
+      )}
     </AppLayout>
   );
 }

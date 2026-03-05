@@ -289,18 +289,13 @@ export default function ExpensesPage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
         <div className="flex justify-center items-center h-full">
           <Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading financial data...</p>
         </div>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
             <StatCard title="Total Income" amount={totalIncome} icon={TrendingUp} variant="income" />
@@ -463,6 +458,7 @@ export default function ExpensesPage() {
             </CardContent>
         </Card>
       </div>
+      )}
     </AppLayout>
   );
 }

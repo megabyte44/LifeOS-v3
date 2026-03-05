@@ -4,6 +4,7 @@ import type { PlannerItem } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['planner'] as const;
+const EMPTY_SCHEDULE: Record<string, PlannerItem[]> = {};
 
 export function usePlanner() {
   const { user } = useAuth();
@@ -40,7 +41,7 @@ export function usePlanner() {
   });
 
   return {
-    weeklySchedule: query.data ?? {},
+    weeklySchedule: query.data ?? EMPTY_SCHEDULE,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

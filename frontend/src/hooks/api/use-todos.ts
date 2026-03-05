@@ -4,6 +4,7 @@ import type { TodoItem } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['todos'] as const;
+const EMPTY_TODOS: TodoItem[] = [];
 
 export function useTodos() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export function useTodos() {
   });
 
   return {
-    todos: query.data ?? [],
+    todos: query.data ?? EMPTY_TODOS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

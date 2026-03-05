@@ -4,6 +4,7 @@ import type { Habit } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['habits'] as const;
+const EMPTY_HABITS: Habit[] = [];
 
 export function useHabits() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export function useHabits() {
   });
 
   return {
-    habits: query.data ?? [],
+    habits: query.data ?? EMPTY_HABITS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

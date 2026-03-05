@@ -4,6 +4,7 @@ import type { Credential } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['credentials'] as const;
+const EMPTY_CREDENTIALS: Credential[] = [];
 
 export function useCredentials() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export function useCredentials() {
   });
 
   return {
-    credentials: query.data ?? [],
+    credentials: query.data ?? EMPTY_CREDENTIALS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

@@ -383,23 +383,24 @@ function HeaderCalendar() {
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, isSigningIn, signOut } = useAuth();
   
   useEffect(() => {
-    if (!loading && !user) {
+    // Only redirect when auth is fully settled AND not in the middle of signing in
+    if (!loading && !isSigningIn && !user) {
       router.replace('/login');
     }
-  }, [loading, user, router]);
+  }, [loading, isSigningIn, user, router]);
 
   const handleLogout = async () => {
     await signOut();
     router.push('/login');
   };
   
-  // Only show the loading spinner while Firebase is resolving the auth state.
-  // Once loading is false and user is null, the useEffect above will redirect;
-  // return null here to avoid showing a spinner during that navigation.
-  if (loading) {
+  // Show spinner while Firebase is resolving auth state OR while sign-in popup is in-flight.
+  // Once loading/isSigningIn is false and user is null, the useEffect above redirects;
+  // return null here to avoid showing the spinner during that brief navigation.
+  if (loading || isSigningIn) {
     return (
       <div className="flex h-screen w-screen items-center justify-center p-4">
         <Loader2 className="h-8 w-8 animate-spin" />

@@ -4,6 +4,7 @@ import type { Notification } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['notifications'] as const;
+const EMPTY_NOTIFICATIONS: Notification[] = [];
 
 export function useNotifications() {
   const { user } = useAuth();
@@ -30,10 +31,10 @@ export function useNotifications() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
   });
 
-  const unreadCount = (query.data ?? []).filter((n: Notification) => !n.read).length;
+  const unreadCount = (query.data ?? EMPTY_NOTIFICATIONS).filter((n: Notification) => !n.read).length;
 
   return {
-    notifications: query.data ?? [],
+    notifications: query.data ?? EMPTY_NOTIFICATIONS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

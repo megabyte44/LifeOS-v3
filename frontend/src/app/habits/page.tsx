@@ -711,9 +711,9 @@ export default function HabitsPage() {
   const activeGoals = useMemo(() => goals.filter(g => !g.archived), [goals]);
 
 
-  if (isLoading) {
-    return (
-        <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
             <div className="space-y-6">
                 <Skeleton className="h-24 w-full" />
                 <Skeleton className="h-64 w-full" />
@@ -722,12 +722,8 @@ export default function HabitsPage() {
                     <Skeleton className="h-80 w-full" />
                 </div>
             </div>
-        </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
+      <>
       <div className="space-y-6">
         {/* Goals Section */}
         <Card>
@@ -2239,7 +2235,8 @@ export default function HabitsPage() {
            )}
          </DialogContent>
        </Dialog>
-
+      </>
+      )}
     </AppLayout>
   );
 }

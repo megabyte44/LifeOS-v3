@@ -3,6 +3,8 @@ package com.lifos.backend.config;
 import com.lifos.backend.security.FirebaseAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -36,6 +38,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // Enable CORS — delegates to the CorsRegistry in WebConfig
+            .cors(Customizer.withDefaults())
+
             // Disable CSRF — REST APIs use Bearer tokens, not cookies
             .csrf(csrf -> csrf.disable())
 
@@ -49,6 +54,8 @@ public class SecurityConfig {
 
             // All /api/** endpoints require a valid Firebase Bearer token
             .authorizeHttpRequests(auth -> auth
+                // CORS preflight requests carry no auth token — must be permitted
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             );

@@ -5,6 +5,9 @@ import { useAuth } from '@/hooks/use-auth';
 
 const TX_KEY = ['transactions'] as const;
 const BUDGET_KEY = ['transactions', 'budget'] as const;
+// Stable empty fallback — avoids creating a new [] on every render
+// which would cause useEffect(dep=[transactions]) to fire in an infinite loop.
+const EMPTY_TRANSACTIONS: Transaction[] = [];
 
 export function useTransactions() {
   const { user } = useAuth();
@@ -44,7 +47,7 @@ export function useTransactions() {
   });
 
   return {
-    transactions: query.data ?? [],
+    transactions: query.data ?? EMPTY_TRANSACTIONS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

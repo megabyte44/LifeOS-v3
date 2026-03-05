@@ -8,22 +8,26 @@ function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // Data is considered fresh for 2 minutes
+        // Data is considered fresh for 2 minutes — no network calls during this window
         staleTime: 2 * 60 * 1000,
-        // Cache unused data for 5 minutes
+        // Cache unused data for 5 minutes after components unmount
         gcTime: 5 * 60 * 1000,
-        // Only retry once, and never retry on network/timeout errors (connection refused won't magically succeed)
+        // Only retry once; never retry on network errors (won't fix themselves)
         retry: (failureCount, error) => {
           if (failureCount >= 1) return false;
           if (error instanceof TypeError) return false; // network error / CORS
           if (error instanceof DOMException && error.name === 'TimeoutError') return false;
           return true;
         },
-        // Don't refetch on every tab switch — staleTime already handles freshness
+        // Refetch stale queries when the tab gains focus (catches background changes)
         refetchOnWindowFocus: false,
+        // Don't crash the component tree on query errors — let error.tsx handle it
+        throwOnError: false,
       },
       mutations: {
         retry: 0,
+        // Don't crash on mutation errors — callers handle them via onError / catch
+        throwOnError: false,
       },
     },
   });

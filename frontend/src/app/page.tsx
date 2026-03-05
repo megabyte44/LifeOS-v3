@@ -8,23 +8,19 @@ import { useAuth } from '@/hooks/use-auth';
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, isSigningIn } = useAuth();
 
   useEffect(() => {
-    // Wait until the auth state is determined
-    if (!loading) {
+    // Only redirect once auth state is fully resolved
+    if (!loading && !isSigningIn) {
       if (user) {
-        // If user is logged in, redirect to dashboard
         router.replace('/dashboard');
       } else {
-        // If no user, redirect to login
         router.replace('/login');
       }
     }
-  }, [user, loading, router]);
+  }, [user, loading, isSigningIn, router]);
 
-  // The loading UI is primarily handled by the AuthProvider now,
-  // but this serves as a fallback.
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-2 text-muted-foreground">

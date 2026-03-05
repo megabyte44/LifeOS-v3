@@ -59,23 +59,18 @@ export default function AdminDashboard() {
     // }
   ];
 
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <p className="text-muted-foreground">Verifying admin access...</p>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (!isAdmin) {
+  if (!loading && !isAdmin) {
     return null; // Hook will redirect
   }
 
   return (
     <AppLayout>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground">Verifying admin access...</p>
+        </div>
+      ) : (
       <div className="container mx-auto p-4 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -115,6 +110,7 @@ export default function AdminDashboard() {
           })}
         </div>
       </div>
+      )}
     </AppLayout>
   );
 }

@@ -785,16 +785,12 @@ export default function NotesPage() {
       }
     });
   
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading notes...</p></div>
-      </AppLayout>
-    );
-  }
-
   return (
     <AppLayout>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading notes...</p></div>
+      ) : (
+      <>
       <div className="space-y-6 max-w-full overflow-x-hidden">
         <header>
           <div className="flex items-center justify-between">
@@ -849,6 +845,8 @@ export default function NotesPage() {
           }
         }}
       />
+      </>
+      )}
     </AppLayout>
   );
 }

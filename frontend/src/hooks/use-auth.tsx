@@ -38,6 +38,8 @@ const googleProvider = new GoogleAuthProvider();
 export interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
+  /** True while the Google sign-in popup is in-flight (before onAuthStateChanged fires). */
+  isSigningIn: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -45,6 +47,7 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isSigningIn: false,
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -55,6 +58,7 @@ export type { FirebaseUser as User };
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -65,6 +69,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(timeout);
       setUser(authUser);
       setLoading(false);
+      // Clear the sign-in flag whenever auth state settles
+      setIsSigningIn(false);
     });
 
     return () => {
@@ -74,13 +80,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
-    // Do NOT manipulate loading here — onAuthStateChanged owns the loading state.
-    // Setting loading=true then false would race with onAuthStateChanged and
-    // briefly expose loading=false + user=null, causing AppLayout to redirect.
+    // Mark as signing-in so AppLayout doesn't redirect to /login while the
+    // popup is open (the window where loading=false && user=null is true).
+    setIsSigningIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged will fire and clear isSigningIn
     } catch (error) {
       console.error('Error signing in with Google', error);
+      setIsSigningIn(false);
       throw error;
     }
   };
@@ -96,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isSigningIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );
