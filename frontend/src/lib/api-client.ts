@@ -95,18 +95,13 @@ async function request<T>(
       errorData = await response.text().catch(() => null);
     }
 
-    // Auto-redirect on 401
-    if (response.status === 401 && typeof window !== 'undefined') {
-      window.location.href = '/login';
-    }
-
-    throw new ApiError(
-      (errorData as { message?: string })?.message ?? `Request failed: ${response.status}`,
-      response.status,
-      errorData,
-    );
-  }
-
+      // On 401, sign out via Firebase — onAuthStateChanged fires null,
+      // AuthProvider clears the RQ cache, and AppLayout redirects to /login.
+      // This avoids a jarring hard redirect on background refetches.
+      if (response.status === 401 && typeof window !== 'undefined') {
+        import('@/lib/firebase').then(({ auth }) =>
+          import('firebase/auth').then(({ signOut }) => signOut(auth).catch(() => {}))
+        );
   // Handle 204 No Content
   if (response.status === 204) {
     return undefined as T;

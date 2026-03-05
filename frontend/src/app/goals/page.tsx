@@ -350,7 +350,7 @@ export default function GoalsPage() {
   const handleSave = async (form: GoalFormState) => {
     const subGoalsList = form.subGoalInputs
       .filter(s => s.trim())
-      .map((title, i) => ({ id: `sg-${Date.now()}-${i}`, title, completed: false, order: i }));
+      .map((title, i) => ({ id: crypto.randomUUID(), title, completed: false, order: i }));
 
     if (editGoal) {
       await updateGoal({

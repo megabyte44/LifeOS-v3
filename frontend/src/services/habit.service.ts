@@ -3,7 +3,9 @@ import type { Habit } from '@/types';
 
 export const habitApiService = {
   async getAll(): Promise<Habit[]> {
-    return apiClient.get<Habit[]>('/api/habits');
+    // Exclude gym-context habits — those are managed by the gym page / gym service
+    const habits = await apiClient.get<Habit[]>('/api/habits');
+    return habits.filter(h => h.context !== 'gym');
   },
 
   async create(habit: Omit<Habit, 'id'>): Promise<Habit> {

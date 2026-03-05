@@ -12,27 +12,11 @@ import {
   signInWithPopup,
   signOut as firebaseSignOut,
   User as FirebaseUser,
-  GoogleAuthProvider,
-  getAuth,
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-
-// Initialize Firebase Auth
-import { initializeApp, getApps, getApp } from "firebase/app";
-
-const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+import { useQueryClient } from '@tanstack/react-query';
+// Single Firebase instance shared across the app — no duplicate init
+import { auth, googleProvider } from '@/lib/firebase';
 
 
 export interface AuthContextType {
@@ -60,6 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Failsafe: if Firebase never responds, stop showing the spinner after 8s
@@ -94,7 +79,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    // onAuthStateChanged will fire with null and set loading=false automatically.
+    // Clear all cached query data so the next user starts with a clean slate
+    queryClient.clear();
     try {
       await firebaseSignOut(auth);
       router.push('/login');

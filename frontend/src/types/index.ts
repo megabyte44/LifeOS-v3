@@ -43,6 +43,7 @@ export type Habit = {
   sprintDuration?: number; // Number of days for sprint (e.g., 30-day challenge)
   sprintEndDate?: string; // ISO string 'yyyy-MM-dd' - alternative to duration
   sprintStartDate?: string; // ISO string 'yyyy-MM-dd' - when the sprint started
+  context?: string; // e.g. 'gym' — used to scope habits to a feature area
 };
 
 export type Note = {
@@ -51,6 +52,7 @@ export type Note = {
   content: string | { text: string; completed: boolean }[] | { code: string; input?: string; output?: string; language?: string };
   type: 'text' | 'checklist' | 'markdown' | 'snippet';
   createdAt: string;
+  updatedAt?: string; // ISO string — set by backend @UpdateTimestamp
 };
 
 export type Credential = {

@@ -32,6 +32,7 @@ public class NoteService {
                 .content(n.getContent())
                 .type(n.getType())
                 .createdAt(n.getCreatedAt().toString())
+                .updatedAt(n.getUpdatedAt() != null ? n.getUpdatedAt().toString() : null)
                 .build();
     }
 
