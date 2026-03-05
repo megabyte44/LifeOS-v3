@@ -86,6 +86,15 @@ async function request<T>(
 
   const response = await fetch(url, config);
 
+  // On 401, sign out via Firebase — onAuthStateChanged fires null,
+  // AuthProvider clears the RQ cache, and AppLayout redirects to /login.
+  // This avoids a jarring hard redirect on background refetches.
+  if (response.status === 401 && typeof window !== 'undefined') {
+    import('@/lib/firebase').then(({ auth }) =>
+      import('firebase/auth').then(({ signOut }) => signOut(auth).catch(() => {}))
+    );
+  }
+
   // Handle non-OK responses
   if (!response.ok) {
     let errorData: unknown;
@@ -94,14 +103,10 @@ async function request<T>(
     } catch {
       errorData = await response.text().catch(() => null);
     }
+    const message = (errorData as { message?: string })?.message ?? `HTTP ${response.status}`;
+    throw new ApiError(message, response.status, errorData);
+  }
 
-      // On 401, sign out via Firebase — onAuthStateChanged fires null,
-      // AuthProvider clears the RQ cache, and AppLayout redirects to /login.
-      // This avoids a jarring hard redirect on background refetches.
-      if (response.status === 401 && typeof window !== 'undefined') {
-        import('@/lib/firebase').then(({ auth }) =>
-          import('firebase/auth').then(({ signOut }) => signOut(auth).catch(() => {}))
-        );
   // Handle 204 No Content
   if (response.status === 204) {
     return undefined as T;
