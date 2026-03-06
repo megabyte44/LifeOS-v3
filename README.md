@@ -250,9 +250,6 @@ The application can be installed as a PWA on supported devices:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License.
 
 ## 🆘 Troubleshooting
 
