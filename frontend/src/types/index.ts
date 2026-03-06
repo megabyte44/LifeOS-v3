@@ -131,6 +131,10 @@ export type Notification = {
   date: string; // ISO string 'yyyy-MM-dd'
   message: string;
   read: boolean;
+  sourceType?: string;
+  sourceId?: string;
+  actionUrl?: string;
+  createdAt?: string;
 };
 
 export type UserPreferences = {

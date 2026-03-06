@@ -30,6 +30,15 @@ public class Notification {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
+    @Column(name = "source_type", length = 64)
+    private String sourceType;
+
+    @Column(name = "source_id", length = 128)
+    private String sourceId;
+
+    @Column(name = "action_url", length = 512)
+    private String actionUrl;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean read = false;

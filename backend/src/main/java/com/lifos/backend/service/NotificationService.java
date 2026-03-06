@@ -32,6 +32,10 @@ public class NotificationService {
                 .date(n.getDate())
                 .message(n.getMessage())
                 .read(n.getRead())
+                .sourceType(n.getSourceType())
+                .sourceId(n.getSourceId())
+                .actionUrl(n.getActionUrl())
+                .createdAt(n.getCreatedAt())
                 .build();
     }
 
@@ -49,6 +53,9 @@ public class NotificationService {
                 .date(req.getDate())
                 .message(req.getMessage())
                 .read(req.getRead() != null ? req.getRead() : false)
+            .sourceType(req.getSourceType())
+            .sourceId(req.getSourceId())
+            .actionUrl(req.getActionUrl())
                 .build();
         return toResponse(notificationRepository.save(n));
     }
