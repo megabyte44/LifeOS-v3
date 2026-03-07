@@ -1,0 +1,65 @@
+package com.lifos.backend.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.lifos.backend.entity.AiConfiguration;
+import com.lifos.backend.repository.AiConfigurationRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Map;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OpenAiEmbeddingClient {
+
+    private final AiConfigurationRepository aiConfigRepo;
+    private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate;
+
+    public float[] getEmbedding(String text) {
+        AiConfiguration config = aiConfigRepo.findAll().stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI not configured"));
+
+        Map<String, Object> apiKeys = config.getApiKeys();
+        String openAiKey = (String) (apiKeys != null ? apiKeys.get("openai") : null);
+
+        if (openAiKey == null || openAiKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "OpenAI API key not configured for embeddings");
+        }
+
+        try {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("model", "text-embedding-3-small");
+            body.put("input", text);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(openAiKey);
+
+            HttpEntity<ObjectNode> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<JsonNode> response = restTemplate.postForEntity(
+                    "https://api.openai.com/v1/embeddings", entity, JsonNode.class);
+
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                JsonNode data = response.getBody().get("data").get(0).get("embedding");
+                float[] embedding = new float[data.size()];
+                for (int i = 0; i < data.size(); i++) {
+                    embedding[i] = (float) data.get(i).asDouble();
+                }
+                return embedding;
+            } else {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to get embedding from OpenAI");
+            }
+        } catch (Exception e) {
+            log.error("Error calling OpenAI Embedding API", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error calling OpenAI Embedding API: " + e.getMessage());
+        }
+    }
+}

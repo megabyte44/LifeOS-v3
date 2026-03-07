@@ -1,5 +1,6 @@
 package com.lifos.backend.service;
 
+import com.lifos.backend.config.AiFoundationProperties;
 import com.lifos.backend.dto.AiChatRequest;
 import com.lifos.backend.dto.AiChatResponse;
 import com.lifos.backend.entity.AiConfiguration;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class AiChatService {
 
     private final AiConfigurationRepository aiConfigRepo;
+    private final AiFoundationProperties aiFoundationProperties;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
@@ -55,7 +57,7 @@ public class AiChatService {
                     (String) (apiKeysCfg != null ? apiKeysCfg.get("gemini") : null),
                     temperature, maxTokens, topP);
             default -> callOpenAiCompatible(req.getMessages(), sysPrompt, model,
-                    (String) (apiKeysCfg != null ? apiKeysCfg.get(provider) : null),
+                resolveApiKey(provider, apiKeysCfg),
                     temperature, maxTokens, topP, provider);
         };
     }
@@ -185,5 +187,16 @@ public class AiChatService {
     private int toInt(Object v) {
         if (v instanceof Number n) return n.intValue();
         try { return Integer.parseInt(v.toString()); } catch (Exception e) { return 4096; }
+    }
+
+    private String resolveApiKey(String provider, Map<String, Object> apiKeysCfg) {
+        String configuredKey = apiKeysCfg != null ? (String) apiKeysCfg.get(provider) : null;
+        if (configuredKey != null && !configuredKey.isBlank()) {
+            return configuredKey;
+        }
+        if ("openai".equals(provider)) {
+            return aiFoundationProperties.getEmbedding().getApiKey();
+        }
+        return null;
     }
 }

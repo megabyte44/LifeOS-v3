@@ -48,3 +48,23 @@ logging:
   level:
     com.lifos.backend: DEBUG
     org.springframework.security: DEBUG
+
+ai:
+  embedding:
+    provider: openai
+    model: text-embedding-3-small
+    base-url: https://api.openai.com/v1
+    api-key: ${OPENAI_API_KEY:}
+    dimensions: 1536
+    max-input-chars: 24000
+  streaming:
+    connect-timeout: 10s
+    response-timeout: 120s
+  rag:
+    default-vector-limit: 5
+    max-context-chunks: 5
+  async:
+    core-pool-size: 4
+    max-pool-size: 8
+    queue-capacity: 100
+    thread-name-prefix: ai-

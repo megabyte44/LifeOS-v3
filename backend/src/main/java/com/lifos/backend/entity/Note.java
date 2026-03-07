@@ -47,7 +47,15 @@ public class Note {
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private JsonNode tags;
 
+    @Column(name = "linked_feature")
+    private String linkedFeature;
+
+    @Column(name = "linked_entity_id")
+    private UUID linkedEntityId;
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
