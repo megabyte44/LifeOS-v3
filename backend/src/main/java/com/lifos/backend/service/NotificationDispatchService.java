@@ -7,9 +7,11 @@ import com.lifos.backend.dto.PushMessagePayload;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationDispatchService {
@@ -22,6 +24,7 @@ public class NotificationDispatchService {
 
     @Transactional
     public DispatchResult dispatch(String uid, NotificationDispatchRequest request) {
+        log.info("Dispatching notification '{}' to user [{}] (sourceType={})", request.getTitle(), uid, request.getSourceType());
         NotificationResponse stored = notificationService.create(uid, CreateNotificationRequest.builder()
                 .title(request.getTitle())
                 .date(request.getDate())
@@ -46,6 +49,7 @@ public class NotificationDispatchService {
                 .build();
 
         int sentCount = webPushService.sendToUser(uid, payload);
+        log.debug("Notification dispatched to user [{}] — pushSentCount={}", uid, sentCount);
         return DispatchResult.builder()
                 .notification(stored)
                 .pushSentCount(sentCount)

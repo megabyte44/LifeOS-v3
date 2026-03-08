@@ -9,6 +9,7 @@ import com.lifos.backend.repository.BudgetRepository;
 import com.lifos.backend.repository.TransactionRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TransactionService {
@@ -49,6 +51,7 @@ public class TransactionService {
     @Transactional
     public TransactionResponse create(String uid, CreateTransactionRequest req) {
         User user = getUser(uid);
+        log.info("Creating transaction for user [{}]: {} {} '{}'", uid, req.getType(), req.getAmount(), req.getDescription());
         Transaction t = Transaction.builder()
                 .user(user)
                 .date(req.getDate() != null ? LocalDate.parse(req.getDate()) : null)
@@ -62,6 +65,7 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponse update(String uid, UUID id, UpdateTransactionRequest req) {
+        log.debug("Updating transaction [{}] for user [{}]", id, uid);
         Transaction t = transactionRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", id));
         if (req.getDate()        != null) t.setDate(LocalDate.parse(req.getDate()));
@@ -76,6 +80,7 @@ public class TransactionService {
     public void delete(String uid, UUID id) {
         Transaction t = transactionRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", id));
+        log.info("Deleting transaction [{}] for user [{}]", id, uid);
         transactionRepository.delete(t);
     }
 
@@ -87,6 +92,7 @@ public class TransactionService {
 
     @Transactional
     public Map<String, Long> updateBudget(String uid, Long budget) {
+        log.info("Updating budget for user [{}] to {}", uid, budget);
         Budget b = budgetRepository.findByUserUid(uid)
                 .orElse(Budget.builder().userUid(uid).budget(0L).build());
         b.setBudget(budget);

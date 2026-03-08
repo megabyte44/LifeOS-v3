@@ -7,12 +7,14 @@ import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.NoteRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NoteService {
@@ -44,6 +46,7 @@ public class NoteService {
     @Transactional
     public NoteResponse create(String uid, CreateNoteRequest req) {
         User user = getUser(uid);
+        log.info("Creating note for user [{}]: '{}'", uid, req.getTitle());
         Note n = Note.builder()
                 .user(user)
                 .title(req.getTitle())
@@ -55,6 +58,7 @@ public class NoteService {
 
     @Transactional
     public NoteResponse update(String uid, UUID id, UpdateNoteRequest req) {
+        log.debug("Updating note [{}] for user [{}]", id, uid);
         Note n = noteRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Note", "id", id));
         if (req.getTitle()   != null) n.setTitle(req.getTitle());
@@ -67,6 +71,7 @@ public class NoteService {
     public void delete(String uid, UUID id) {
         Note n = noteRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Note", "id", id));
+        log.info("Deleting note [{}] for user [{}]", id, uid);
         noteRepository.delete(n);
     }
 }

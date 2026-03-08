@@ -4,6 +4,7 @@ import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.*;
 import com.lifos.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminService {
@@ -24,6 +26,7 @@ public class AdminService {
     private final HabitRepository habitRepo;
     private final TransactionRepository transactionRepo;
     private final AiConfigurationRepository aiConfigRepo;
+    private final AiConfigurationResolver aiConfigurationResolver;
     private final SystemSettingsRepository systemSettingsRepo;
     private final AnnouncementRepository announcementRepo;
     private final AboutPageRepository aboutPageRepo;
@@ -61,15 +64,15 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public AiConfigurationResponse getAiConfig() {
-        AiConfiguration row = aiConfigRepo.findAll().stream().findFirst()
-                .orElse(AiConfiguration.builder().build());
+        AiConfiguration row = aiConfigurationResolver.resolve();
         return toAiConfigResponse(row);
     }
 
     @Transactional
     public AiConfigurationResponse updateAiConfig(String uid, UpdateAiConfigRequest req) {
+        log.info("Admin [{}] updating AI configuration", uid);
         AiConfiguration row = aiConfigRepo.findAll().stream().findFirst()
-                .orElse(AiConfiguration.builder().build());
+            .orElse(aiConfigurationResolver.resolve());
         if (req.getSystemInstructions() != null) row.setSystemInstructions(req.getSystemInstructions());
         if (req.getDefaultPersonality() != null) row.setDefaultPersonality(req.getDefaultPersonality());
         if (req.getModelConfig() != null) row.setModelConfig(req.getModelConfig());
@@ -90,6 +93,7 @@ public class AdminService {
 
     @Transactional
     public SystemSettingsResponse updateSystemSettings(String uid, UpdateSystemSettingsRequest req) {
+        log.info("Admin [{}] updating system settings", uid);
         SystemSettings row = systemSettingsRepo.findAll().stream().findFirst()
                 .orElse(SystemSettings.builder().build());
         if (req.getFeatures() != null) row.setFeatures(req.getFeatures());
@@ -109,6 +113,7 @@ public class AdminService {
 
     @Transactional
     public AnnouncementResponse createAnnouncement(String uid, CreateAnnouncementRequest req) {
+        log.info("Admin [{}] creating announcement: '{}'", uid, req.getTitle());
         Announcement a = Announcement.builder()
                 .title(req.getTitle())
                 .content(req.getContent() != null ? req.getContent() : "")
@@ -144,6 +149,7 @@ public class AdminService {
     public void deleteAnnouncement(UUID id) {
         Announcement a = announcementRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Announcement not found"));
+        log.info("Deleting announcement [{}]: '{}'", id, a.getTitle());
         announcementRepo.delete(a);
     }
 
@@ -158,6 +164,7 @@ public class AdminService {
 
     @Transactional
     public AboutPageResponse updateAbout(String uid, UpdateAboutPageRequest req) {
+        log.info("Admin [{}] updating about page", uid);
         AboutPage row = aboutPageRepo.findAll().stream().findFirst()
                 .orElse(AboutPage.builder().build());
         if (req.getTitle() != null) row.setTitle(req.getTitle());
