@@ -9,7 +9,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lifeos}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:365210}
+    password: ${SPRING_DATASOURCE_PASSWORD:1105}
     driver-class-name: org.postgresql.Driver
 
   # ── JPA / Hibernate ──
