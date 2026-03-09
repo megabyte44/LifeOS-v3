@@ -4,12 +4,14 @@ server:
 spring:
   application:
     name: LifeOS-backend
+  config:
+    import: optional:file:.env[.properties],optional:file:./backend/.env[.properties]
 
-  # ── PostgreSQL Datasource ──
+  # ── PostgreSQL Datasource (Neon.tech) ──
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lifeos}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:365210}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-proud-glade-a4sn6exq-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_qUsA6mOMGiE4}
     driver-class-name: org.postgresql.Driver
 
   # ── JPA / Hibernate ──

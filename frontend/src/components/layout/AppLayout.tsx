@@ -21,6 +21,7 @@ import {
   Dumbbell,
   Target,
   CalendarCheck,
+  Bot,
 } from 'lucide-react';
 import { AnvilIcon } from '@/components/ui/anvil-icon';
 import {
@@ -73,6 +74,7 @@ const navItems = [
   { href: '/habits', icon: AnvilIcon, label: 'Forge' },
   { href: '/notes', icon: StickyNote, label: 'Notes' },
   { href: '/gym', icon: Dumbbell, label: 'Gym' },
+  { href: '/ai-chat', icon: Bot, label: 'AI Chat' },
 ];
 
 function DesktopSidebar() {
