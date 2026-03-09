@@ -3,8 +3,6 @@ package com.lifos.backend.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.lifos.backend.entity.AiConfiguration;
-import com.lifos.backend.repository.AiConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -12,23 +10,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Map;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OpenAiEmbeddingClient {
 
-    private final AiConfigurationRepository aiConfigRepo;
+    private final AiConfigurationResolver aiConfigurationResolver;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
     public float[] getEmbedding(String text) {
-        AiConfiguration config = aiConfigRepo.findAll().stream().findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI not configured"));
-
-        Map<String, Object> apiKeys = config.getApiKeys();
-        String openAiKey = (String) (apiKeys != null ? apiKeys.get("openai") : null);
+        String openAiKey = aiConfigurationResolver.resolveProviderApiKey("openai", aiConfigurationResolver.resolve().getApiKeys());
 
         if (openAiKey == null || openAiKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "OpenAI API key not configured for embeddings");

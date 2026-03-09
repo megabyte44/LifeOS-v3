@@ -4,7 +4,6 @@ import com.lifos.backend.config.AiFoundationProperties;
 import com.lifos.backend.dto.AiChatRequest;
 import com.lifos.backend.dto.AiChatResponse;
 import com.lifos.backend.entity.AiConfiguration;
-import com.lifos.backend.repository.AiConfigurationRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -24,26 +23,24 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AiChatService {
 
-    private final AiConfigurationRepository aiConfigRepo;
     private final AiFoundationProperties aiFoundationProperties;
+    private final AiConfigurationResolver aiConfigurationResolver;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
     public AiChatResponse chat(AiChatRequest req) {
-        AiConfiguration config = aiConfigRepo.findAll().stream().findFirst().orElse(null);
-
-        if (config == null || config.getModelConfig() == null || config.getModelConfig().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI is not configured. Set up AI config in admin panel.");
-        }
+        AiConfiguration config = aiConfigurationResolver.resolve();
 
         Map<String, Object> modelCfg = config.getModelConfig();
         Map<String, Object> apiKeysCfg = config.getApiKeys();
 
         String provider = (String) modelCfg.getOrDefault("provider", "openrouter");
-        String model = req.getModel() != null ? req.getModel() : (String) modelCfg.getOrDefault("model", "");
+        String model = aiConfigurationResolver.resolveChatModel(provider, modelCfg, req.getModel());
         double temperature = toDouble(modelCfg.getOrDefault("temperature", 0.7));
         int maxTokens = toInt(modelCfg.getOrDefault("maxTokens", 4096));
         double topP = toDouble(modelCfg.getOrDefault("topP", 1.0));
+
+        log.info("AI chat request — provider={} model={}", provider, model);
 
         // Prepend system instruction based on personality
         String personality = req.getPersonality() != null ? req.getPersonality() : config.getDefaultPersonality();
@@ -54,7 +51,7 @@ public class AiChatService {
 
         return switch (provider) {
             case "gemini" -> callGemini(req.getMessages(), sysPrompt, model,
-                    (String) (apiKeysCfg != null ? apiKeysCfg.get("gemini") : null),
+                    aiConfigurationResolver.resolveProviderApiKey("gemini", apiKeysCfg),
                     temperature, maxTokens, topP);
             default -> callOpenAiCompatible(req.getMessages(), sysPrompt, model,
                 resolveApiKey(provider, apiKeysCfg),
@@ -77,9 +74,16 @@ public class AiChatService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "API key for " + provider + " is not configured.");
         }
 
+        // Final safety-net: never send a blank model to the provider.
+        String resolvedModel = (model == null || model.isBlank())
+                ? (provider.equals("openrouter") ? "openai/gpt-4o-mini" : "gpt-4o-mini")
+                : model;
+
+        log.info("AI calling {} with model={}", provider, resolvedModel);
+
         try {
             ObjectNode body = objectMapper.createObjectNode();
-            body.put("model", model);
+            body.put("model", resolvedModel);
             body.put("temperature", temperature);
             body.put("max_tokens", maxTokens);
             body.put("top_p", topP);
@@ -92,6 +96,9 @@ public class AiChatService {
                 msgs.addObject().put("role", m.getRole()).put("content", m.getContent());
             }
 
+            String jsonBody = objectMapper.writeValueAsString(body);
+            log.info("AI request body: {}", jsonBody);
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(apiKey);
@@ -100,7 +107,7 @@ public class AiChatService {
             }
 
             ResponseEntity<JsonNode> resp = restTemplate.exchange(
-                    url, HttpMethod.POST, new HttpEntity<>(body, headers), JsonNode.class);
+                    url, HttpMethod.POST, new HttpEntity<>(jsonBody, headers), JsonNode.class);
 
             String content = resp.getBody()
                     .path("choices").get(0)
@@ -129,9 +136,8 @@ public class AiChatService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Gemini API key is not configured.");
         }
 
-        String resolvedModel = (model == null || model.isBlank()) ? "gemini-2.0-flash" : model;
         String url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                + resolvedModel + ":generateContent?key=" + apiKey;
+                + model + ":generateContent?key=" + apiKey;
 
         try {
             ObjectNode body = objectMapper.createObjectNode();
@@ -168,7 +174,7 @@ public class AiChatService {
 
             AiChatResponse r = new AiChatResponse();
             r.setResult(text);
-            r.setModel(resolvedModel);
+            r.setModel(model);
             return r;
 
         } catch (Exception e) {
@@ -190,13 +196,6 @@ public class AiChatService {
     }
 
     private String resolveApiKey(String provider, Map<String, Object> apiKeysCfg) {
-        String configuredKey = apiKeysCfg != null ? (String) apiKeysCfg.get(provider) : null;
-        if (configuredKey != null && !configuredKey.isBlank()) {
-            return configuredKey;
-        }
-        if ("openai".equals(provider)) {
-            return aiFoundationProperties.getEmbedding().getApiKey();
-        }
-        return null;
+        return aiConfigurationResolver.resolveProviderApiKey(provider, apiKeysCfg);
     }
 }

@@ -89,7 +89,7 @@ function AiChatContent() {
   const [editingTitle, setEditingTitle] = useState('');
   const [aiSettings, setAiSettings] = useState({
     defaultPersonality: 'casual' as keyof typeof AI_PERSONALITIES,
-    preferredModel: 'gemini',
+    preferredModel: '',
     enableContextMemory: true,
     maxContextLength: 10
   });
@@ -205,7 +205,7 @@ function AiChatContent() {
     // Mock settings
     const mockSettings = {
         defaultPersonality: 'casual' as keyof typeof AI_PERSONALITIES,
-        preferredModel: 'gemini',
+      preferredModel: '',
         enableContextMemory: true,
         maxContextLength: 10
     };
@@ -322,20 +322,22 @@ function AiChatContent() {
 
       const token = await user.getIdToken();
 
+      const requestBody = {
+        messages: [
+          { role: 'system', content: systemInstructions },
+          ...contextMessages,
+          userMessage
+        ],
+        ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {})
+      };
+
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemInstructions },
-            ...contextMessages,
-            userMessage
-          ],
-          model: aiSettings.preferredModel
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -348,7 +350,7 @@ function AiChatContent() {
       const aiMessage: ChatMessage = {
         id: `msg-${Date.now()}-ai`,
         role: 'assistant',
-        content: data.text || data.response || 'I apologize, but I encountered an error processing your request.',
+        content: data.result || data.text || data.response || 'I apologize, but I encountered an error processing your request.',
         timestamp: new Date()
       };
 

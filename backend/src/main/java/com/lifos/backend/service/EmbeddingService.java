@@ -42,7 +42,7 @@ public class EmbeddingService {
         }
 
         float[] vector = openAiEmbeddingClient.getEmbedding(truncateText(text, 8000));
-        User user = userRepository.findByUid(userUid)
+        User user = userRepository.findById(userUid)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + userUid));
 
         Embedding embedding = existing.orElse(Embedding.builder()
