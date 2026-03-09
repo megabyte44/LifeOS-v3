@@ -1,7 +1,7 @@
 services:
   # ── PostgreSQL Database ──
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: lifeos-db
     restart: unless-stopped
     env_file: .env
@@ -40,6 +40,7 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
     networks:

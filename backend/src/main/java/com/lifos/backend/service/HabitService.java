@@ -7,6 +7,7 @@ import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.HabitRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class HabitService {
@@ -51,6 +53,7 @@ public class HabitService {
     @Transactional
     public HabitResponse create(String uid, CreateHabitRequest req) {
         User user = getUser(uid);
+        log.info("Creating habit '{}' for user [{}]", req.getName(), uid);
         Habit h = Habit.builder()
                 .user(user)
                 .name(req.getName())
@@ -68,6 +71,7 @@ public class HabitService {
 
     @Transactional
     public HabitResponse update(String uid, UUID id, UpdateHabitRequest req) {
+        log.debug("Updating habit [{}] for user [{}]", id, uid);
         Habit h = habitRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
         if (req.getName()            != null) h.setName(req.getName());
@@ -86,6 +90,7 @@ public class HabitService {
     public void delete(String uid, UUID id) {
         Habit h = habitRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
+        log.info("Deleting habit [{}] for user [{}]", id, uid);
         habitRepository.delete(h);
     }
 }

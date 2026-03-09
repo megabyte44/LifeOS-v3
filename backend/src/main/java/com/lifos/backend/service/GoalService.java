@@ -5,6 +5,7 @@ import com.lifos.backend.entity.*;
 import com.lifos.backend.repository.GoalRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GoalService {
@@ -40,7 +42,7 @@ public class GoalService {
     public GoalResponse create(String uid, CreateGoalRequest req) {
         User user = userRepo.findById(uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
+        log.info("Creating goal '{}' for user [{}]", req.getTitle(), uid);
         Goal goal = Goal.builder()
                 .user(user)
                 .title(req.getTitle())
@@ -61,6 +63,7 @@ public class GoalService {
 
     @Transactional
     public GoalResponse update(String uid, UUID id, UpdateGoalRequest req) {
+        log.debug("Updating goal [{}] for user [{}]", id, uid);
         Goal goal = goalRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
 
@@ -90,6 +93,7 @@ public class GoalService {
     public void delete(String uid, UUID id) {
         Goal goal = goalRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
+        log.info("Deleting goal [{}] for user [{}]", id, uid);
         goalRepo.delete(goal);
     }
 

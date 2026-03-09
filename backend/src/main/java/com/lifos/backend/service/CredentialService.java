@@ -8,6 +8,7 @@ import com.lifos.backend.repository.CredentialRepository;
 import com.lifos.backend.repository.UserRepository;
 import com.lifos.backend.security.EncryptionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CredentialService {
@@ -67,6 +69,7 @@ public class CredentialService {
     @Transactional
     public CredentialResponse create(String uid, CreateCredentialRequest req) {
         User user = getUser(uid);
+        log.info("Creating credential '{}' ({}) for user [{}]", req.getName(), req.getCategory(), uid);
         Credential c = Credential.builder()
                 .user(user)
                 .name(req.getName())
@@ -89,6 +92,7 @@ public class CredentialService {
 
     @Transactional
     public CredentialResponse update(String uid, UUID id, UpdateCredentialRequest req) {
+        log.debug("Updating credential [{}] for user [{}]", id, uid);
         Credential c = credentialRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Credential", "id", id));
         if (req.getName()                != null) c.setName(req.getName());
@@ -112,6 +116,7 @@ public class CredentialService {
     public void delete(String uid, UUID id) {
         Credential c = credentialRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Credential", "id", id));
+        log.info("Deleting credential [{}] '{}' for user [{}]", id, c.getName(), uid);
         credentialRepository.delete(c);
     }
 }

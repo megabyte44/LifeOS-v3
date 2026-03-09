@@ -6,7 +6,7 @@ export const notificationApiService = {
     return apiClient.get<Notification[]>('/api/notifications');
   },
 
-  async create(notification: Omit<Notification, 'id'>): Promise<Notification> {
+  async create(notification: Omit<Notification, 'id' | 'createdAt'>): Promise<Notification> {
     return apiClient.post<Notification>('/api/notifications', notification);
   },
 

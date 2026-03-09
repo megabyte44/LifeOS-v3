@@ -55,6 +55,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
         // If no Bearer token, skip — SecurityConfig handles the 401
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.debug("No Bearer token — {} {}", request.getMethod(), request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
@@ -85,7 +86,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             // Store in SecurityContext so controllers can retrieve it
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            log.debug("Authenticated user: {}", uid);
+            log.debug("Authenticated user [{}] {} {}", uid, request.getMethod(), request.getRequestURI());
 
         } catch (FirebaseAuthException e) {
             // Invalid/expired token — clear context and let Spring return 401

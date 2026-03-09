@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { usePreferences } from '@/hooks/api/use-preferences';
 import { cn } from '@/lib/utils';
+import { pushService } from '@/services';
 import type { UserPreferences } from '@/types';
 
 // ─── Theme swatch config ─────────────────────────────────────────────────────
@@ -199,13 +200,9 @@ function PushNotificationManager() {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
       });
-      const token = await user.getIdToken();
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(sub),
+      await pushService.subscribe({
+        subscription: sub.toJSON() as PushSubscriptionJSON,
       });
-      if (!res.ok) throw new Error((await res.json()).error || res.statusText);
       setIsSubscribed(true);
       toast({ title: 'Subscribed ✅', description: 'You will now receive push notifications.' });
     } catch (e) {
@@ -221,13 +218,9 @@ function PushNotificationManager() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
+        const endpoint = sub.endpoint;
         await sub.unsubscribe();
-        const token = await user.getIdToken();
-        await fetch('/api/push/unsubscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        });
+        await pushService.unsubscribe(endpoint);
       }
       setIsSubscribed(false);
       toast({ title: 'Unsubscribed' });
@@ -251,10 +244,7 @@ function PushNotificationManager() {
   const handleSendTest = async () => {
     if (!user || !isSubscribed) return;
     try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/push/send-test', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      await pushService.sendTest();
       toast({ title: 'Test sent 🎉', description: 'Check your device.' });
     } catch (e) {
       toast({ variant: 'destructive', title: 'Failed', description: e instanceof Error ? e.message : 'Unknown error' });

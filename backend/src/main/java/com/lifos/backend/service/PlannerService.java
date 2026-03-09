@@ -6,6 +6,7 @@ import com.lifos.backend.entity.User;
 import com.lifos.backend.repository.PlannerItemRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PlannerService {
@@ -39,6 +41,8 @@ public class PlannerService {
     public Map<String, List<PlannerItemResponse>> updateDay(String uid, String day,
                                                             UpdateDayScheduleRequest req) {
         User user = getUser(uid);
+        log.info("Updating planner for user [{}] day='{}' items={}", uid, day,
+                req.getItems() != null ? req.getItems().size() : 0);
         plannerRepo.deleteAllByUserUidAndDay(uid, day);
         plannerRepo.flush();
 
@@ -63,6 +67,7 @@ public class PlannerService {
     @Transactional
     public PlannerItemResponse addItem(String uid, String day, CreatePlannerItemRequest req) {
         User user = getUser(uid);
+        log.info("Adding planner item '{}' to day '{}' for user [{}]", req.getTitle(), day, uid);
         PlannerItem item = PlannerItem.builder()
                 .user(user)
                 .day(day)
@@ -79,6 +84,7 @@ public class PlannerService {
     @Transactional
     public PlannerItemResponse updateItem(String uid, String day, UUID id,
                                           UpdatePlannerItemRequest req) {
+        log.debug("Updating planner item [{}] for user [{}]", id, uid);
         PlannerItem item = plannerRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Planner item not found"));
 
@@ -96,6 +102,7 @@ public class PlannerService {
     public void deleteItem(String uid, String day, UUID id) {
         PlannerItem item = plannerRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Planner item not found"));
+        log.info("Deleting planner item [{}] '{}' on day '{}' for user [{}]", id, item.getTitle(), day, uid);
         plannerRepo.delete(item);
     }
 

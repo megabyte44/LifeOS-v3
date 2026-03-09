@@ -191,18 +191,24 @@ type Credential = {
 | Method | Path | Description | Request Body | Response |
 |--------|------|-------------|-------------|----------|
 | `GET` | `/api/notifications` | List all notifications | — | `Notification[]` |
-| `POST` | `/api/notifications` | Create a notification | `Omit<Notification, 'id'>` | `Notification` |
+| `POST` | `/api/notifications` | Create a notification | `Omit<Notification, 'id' | 'createdAt'>` | `Notification` |
 | `PATCH` | `/api/notifications/:id` | Mark as read | `{ read: true }` | `Notification` |
 | `POST` | `/api/notifications/mark-all-read` | Mark all as read | — | `204` |
 | `DELETE` | `/api/notifications/:id` | Delete a notification | — | `204` |
 
-```typescript
+`Notification` supports optional metadata fields for future feature-specific notifications:
+
+```ts
 type Notification = {
   id: string;
   title: string;
-  date: string; // 'yyyy-MM-dd'
+  date: string;
   message: string;
   read: boolean;
+  sourceType?: string;
+  sourceId?: string;
+  actionUrl?: string;
+  createdAt?: string;
 };
 ```
 
@@ -331,6 +337,23 @@ type AiChatResponse = {
 | `POST` | `/api/push/subscribe` | Save push subscription | `{ subscription: PushSubscriptionJSON }` | `{ success: boolean, message: string }` |
 | `POST` | `/api/push/unsubscribe` | Remove subscription | `{ endpoint: string }` | `{ success: boolean, message: string }` |
 | `POST` | `/api/push/send-test` | Send test notification | — | `{ success: boolean, message: string }` |
+
+Push payloads delivered to the service worker use this shape:
+
+```ts
+type PushPayload = {
+  title: string;
+  body: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  data?: {
+    url?: string;
+    sourceType?: string;
+    sourceId?: string;
+  };
+};
+```
 
 ---
 

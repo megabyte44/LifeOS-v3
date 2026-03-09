@@ -4,12 +4,14 @@ import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.Preference;
 import com.lifos.backend.repository.PreferenceRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PreferenceService {
@@ -24,6 +26,7 @@ public class PreferenceService {
 
     @Transactional
     public PreferenceResponse update(String uid, UpdatePreferenceRequest req) {
+        log.info("Updating preferences for user [{}]", uid);
         Preference p = preferenceRepository.findByUserUid(uid)
                 .orElse(buildDefault(uid));
         if (req.getFeatures()   != null) p.setFeatures(req.getFeatures());
