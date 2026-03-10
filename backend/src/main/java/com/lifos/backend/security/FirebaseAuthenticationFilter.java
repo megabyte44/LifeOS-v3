@@ -1,5 +1,6 @@
 package com.lifos.backend.security;
 
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
@@ -61,6 +62,13 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String idToken = authHeader.substring(7); // Strip "Bearer " prefix
+
+        // If Firebase is not initialized (missing service account), skip auth
+        if (FirebaseApp.getApps().isEmpty()) {
+            log.warn("Firebase not initialized — skipping token verification");
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         try {
             // Verify token with Firebase — throws if expired/invalid/revoked

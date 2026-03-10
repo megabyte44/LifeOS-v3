@@ -54,7 +54,7 @@ public class EmbeddingService {
 
         embedding.setContentHash(contentHash);
         embedding.setContentPreview(text.substring(0, Math.min(text.length(), 200)));
-        embedding.setEmbedding(vector);
+        embedding.setEmbedding(floatArrayToString(vector));
         embedding.setUpdatedAt(Instant.now());
 
         embeddingRepository.save(embedding);
@@ -86,5 +86,15 @@ public class EmbeddingService {
         // Rough estimate of tokens for text-embedding-3-small
         if (text.length() <= maxChars) return text;
         return text.substring(0, maxChars);
+    }
+
+    private String floatArrayToString(float[] vector) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < vector.length; i++) {
+            if (i > 0) sb.append(",");
+            sb.append(vector[i]);
+        }
+        sb.append("]");
+        return sb.toString();
     }
 }

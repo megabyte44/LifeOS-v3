@@ -15,9 +15,9 @@ public interface EmbeddingRepository extends JpaRepository<Embedding, UUID> {
     
     void deleteBySourceTypeAndSourceId(String sourceType, UUID sourceId);
 
+    // pgvector not available locally — similarity search disabled
     @Query(value = "SELECT * FROM embeddings e " +
                    "WHERE e.user_uid = :userUid " +
-                   "ORDER BY e.embedding <=> cast(:queryVector as vector) " +
                    "LIMIT :limit", nativeQuery = true)
     List<Embedding> findSimilar(@Param("userUid") String userUid, 
                                 @Param("queryVector") float[] queryVector, 

@@ -2,8 +2,6 @@ package com.lifos.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -36,9 +34,8 @@ public class Embedding {
     @Column(name = "content_preview", columnDefinition = "TEXT")
     private String contentPreview;
 
-    @Column(name = "embedding")
-    @JdbcTypeCode(SqlTypes.VECTOR)
-    private float[] embedding;
+    @Column(name = "embedding", columnDefinition = "TEXT")
+    private String embedding;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
