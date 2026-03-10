@@ -42,6 +42,10 @@ public class FirebaseConfig {
     @PostConstruct
     public void init() throws IOException {
         if (FirebaseApp.getApps().isEmpty()) {
+            if (!serviceAccountResource.exists()) {
+                System.err.println("WARNING: Firebase service account file not found. Firebase auth will NOT work.");
+                return;
+            }
             GoogleCredentials credentials = GoogleCredentials
                     .fromStream(serviceAccountResource.getInputStream());
 
