@@ -12,9 +12,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -28,6 +34,7 @@ public class AiChatService {
     private final UserProfileService userProfileService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
     public AiChatResponse chat(AiChatRequest req, String userUid) {
         AiConfiguration config = aiConfigurationResolver.resolve();
@@ -241,6 +248,174 @@ public class AiChatService {
         } catch (Exception e) {
             log.error("Gemini chat error: {}", e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini call failed: " + e.getMessage());
+        }
+    }
+
+    // ── Streaming ──────────────────────────────────────────────────────────────
+
+    public void streamChat(AiChatRequest req, String userUid, SseEmitter emitter) {
+        AiConfiguration config = aiConfigurationResolver.resolve();
+        Map<String, Object> modelCfg = config.getModelConfig();
+        Map<String, Object> apiKeysCfg = config.getApiKeys();
+
+        String provider = (String) modelCfg.getOrDefault("provider", "openrouter");
+        String model = aiConfigurationResolver.resolveChatModel(provider, modelCfg, req.getModel());
+        double temperature = toDouble(modelCfg.getOrDefault("temperature", 0.7));
+        int maxTokens = toInt(modelCfg.getOrDefault("maxTokens", 4096));
+        double topP = toDouble(modelCfg.getOrDefault("topP", 1.0));
+
+        String mode = req.getMode() != null ? req.getMode() : "normal";
+        log.info("AI stream request — provider={} model={} mode={}", provider, model, mode);
+
+        String sysPrompt = buildSystemPrompt(req, config, userUid, mode);
+
+        Flux<String> tokenFlux = switch (provider) {
+            case "gemini" -> streamGemini(req.getMessages(), sysPrompt, model,
+                    aiConfigurationResolver.resolveProviderApiKey("gemini", apiKeysCfg),
+                    temperature, maxTokens, topP);
+            default -> streamOpenAiCompatible(req.getMessages(), sysPrompt, model,
+                    resolveApiKey(provider, apiKeysCfg),
+                    temperature, maxTokens, topP, provider);
+        };
+
+        tokenFlux.subscribe(
+            token -> {
+                try {
+                    // Encode newlines so SSE framing doesn't eat them
+                    emitter.send(SseEmitter.event().data(token.replace("\n", "\\n")));
+                } catch (IOException e) {
+                    emitter.completeWithError(e);
+                }
+            },
+            error -> {
+                log.error("AI stream error: {}", error.getMessage());
+                try {
+                    emitter.send(SseEmitter.event().name("error").data(error.getMessage()));
+                } catch (IOException ignored) {}
+                emitter.completeWithError(error);
+            },
+            () -> {
+                try {
+                    emitter.send(SseEmitter.event().name("done").data("[DONE]"));
+                    emitter.complete();
+                } catch (IOException e) {
+                    emitter.completeWithError(e);
+                }
+            }
+        );
+    }
+
+    private Flux<String> streamOpenAiCompatible(
+            List<AiChatRequest.AiMessage> messages, String sysPrompt,
+            String model, String apiKey, double temperature, int maxTokens, double topP,
+            String provider) {
+
+        String url = provider.equals("openai")
+                ? "https://api.openai.com/v1/chat/completions"
+                : "https://openrouter.ai/api/v1/chat/completions";
+
+        String resolvedModel = (model == null || model.isBlank())
+                ? (provider.equals("openrouter") ? "openai/gpt-4o-mini" : "gpt-4o-mini")
+                : model;
+
+        try {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("model", resolvedModel);
+            body.put("temperature", temperature);
+            body.put("max_tokens", maxTokens);
+            body.put("top_p", topP);
+            body.put("stream", true);
+
+            ArrayNode msgs = body.putArray("messages");
+            if (!sysPrompt.isBlank()) {
+                msgs.addObject().put("role", "system").put("content", sysPrompt);
+            }
+            for (AiChatRequest.AiMessage m : messages) {
+                msgs.addObject().put("role", m.getRole()).put("content", m.getContent());
+            }
+            String jsonBody = objectMapper.writeValueAsString(body);
+
+            return webClient.post()
+                    .uri(url)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                    .header(HttpHeaders.ACCEPT, "text/event-stream")
+                    .header("HTTP-Referer", "https://lifeos.app")
+                    .bodyValue(jsonBody)
+                    .retrieve()
+                    .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                    .filter(event -> {
+                        String data = event.data();
+                        return data != null && !data.isBlank() && !"[DONE]".equals(data);
+                    })
+                    .flatMap(event -> {
+                        try {
+                            JsonNode node = objectMapper.readTree(event.data());
+                            String content = node.path("choices").get(0)
+                                    .path("delta").path("content").asText("");
+                            return content.isEmpty() ? Flux.empty() : Flux.just(content);
+                        } catch (Exception e) {
+                            return Flux.empty();
+                        }
+                    });
+        } catch (Exception e) {
+            return Flux.error(e);
+        }
+    }
+
+    private Flux<String> streamGemini(
+            List<AiChatRequest.AiMessage> messages, String sysPrompt,
+            String model, String apiKey, double temperature, int maxTokens, double topP) {
+
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                + model + ":streamGenerateContent?alt=sse&key=" + apiKey;
+
+        try {
+            ObjectNode body = objectMapper.createObjectNode();
+            ArrayNode contents = body.putArray("contents");
+
+            if (!sysPrompt.isBlank()) {
+                ObjectNode sysNode = contents.addObject();
+                sysNode.put("role", "user");
+                sysNode.putArray("parts").addObject().put("text", sysPrompt);
+            }
+            for (AiChatRequest.AiMessage m : messages) {
+                ObjectNode msgNode = contents.addObject();
+                String geminiRole = m.getRole().equals("assistant") ? "model" : "user";
+                msgNode.put("role", geminiRole);
+                msgNode.putArray("parts").addObject().put("text", m.getContent());
+            }
+            ObjectNode genConfig = body.putObject("generationConfig");
+            genConfig.put("temperature", temperature);
+            genConfig.put("maxOutputTokens", maxTokens);
+            genConfig.put("topP", topP);
+
+            String jsonBody = objectMapper.writeValueAsString(body);
+
+            return webClient.post()
+                    .uri(url)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .header(HttpHeaders.ACCEPT, "text/event-stream")
+                    .bodyValue(jsonBody)
+                    .retrieve()
+                    .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                    .filter(event -> event.data() != null && !event.data().isBlank())
+                    .flatMap(event -> {
+                        try {
+                            JsonNode node = objectMapper.readTree(event.data());
+                            JsonNode parts = node.path("candidates").get(0)
+                                    .path("content").path("parts");
+                            if (parts.isArray() && parts.size() > 0) {
+                                String text = parts.get(0).path("text").asText("");
+                                return text.isEmpty() ? Flux.empty() : Flux.just(text);
+                            }
+                            return Flux.empty();
+                        } catch (Exception e) {
+                            return Flux.empty();
+                        }
+                    });
+        } catch (Exception e) {
+            return Flux.error(e);
         }
     }
 

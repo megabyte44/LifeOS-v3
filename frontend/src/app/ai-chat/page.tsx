@@ -100,6 +100,7 @@ function AiChatContent() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [chatMode, setChatMode] = useState<'normal' | 'chat_buddy'>('normal');
   const [selectedPersonality, setSelectedPersonality] = useState<keyof typeof AI_PERSONALITIES>('casual');
   const [customInstructions] = useState('');
   const [isTemporaryChat, setIsTemporaryChat] = useState(false);
@@ -299,9 +300,10 @@ function AiChatContent() {
       timestamp: new Date()
     };
 
+    const effectiveSessionId = isTemporaryChat ? 'temp' : session!.id;
+
     // Add user message to session or temporary chat
     if (isTemporaryChat) {
-      // For temporary chat, just use a temporary session structure
       if (!currentSession) {
         const tempSession = {
           id: 'temp',
@@ -320,7 +322,6 @@ function AiChatContent() {
         ));
       }
     } else {
-      // Add user message to regular session
       const updatedSession = {
         ...session!,
         messages: [...session!.messages, userMessage]
@@ -330,6 +331,20 @@ function AiChatContent() {
 
     setMessage('');
     setIsLoading(true);
+
+    // Insert AI placeholder immediately so the user sees activity
+    const aiMsgId = `msg-${Date.now()}-ai`;
+    const aiPlaceholder: ChatMessage = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date()
+    };
+    setSessions(prev => prev.map(s =>
+      s.id === effectiveSessionId
+        ? { ...s, messages: [...s.messages, aiPlaceholder] }
+        : s
+    ));
 
     try {
       const systemInstructions = AI_PERSONALITIES[selectedPersonality].systemInstructions + 
@@ -347,10 +362,11 @@ function AiChatContent() {
           ...contextMessages,
           userMessage
         ],
-        ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {})
+        ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {}),
+        mode: chatMode
       };
 
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch('/api/ai/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -359,62 +375,69 @@ function AiChatContent() {
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get AI response');
+      if (!response.ok || !response.body) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error((errorData as any).error || `Request failed: ${response.status}`);
       }
 
-      const data = await response.json();
-      
-      const aiMessage: ChatMessage = {
-        id: `msg-${Date.now()}-ai`,
-        role: 'assistant',
-        content: data.result || data.text || data.response || 'I apologize, but I encountered an error processing your request.',
-        timestamp: new Date()
-      };
+      // Stream is connected — hide dots and let tokens fill the placeholder
+      setIsLoading(false);
 
-      if (isTemporaryChat) {
-        setSessions(prev => prev.map(s => 
-          s.id === 'temp' 
-            ? { ...s, messages: [...s.messages, aiMessage] }
-            : s
-        ));
-      } else {
-        setSessions(prev => prev.map(s => 
-          s.id === session!.id 
-            ? { ...s, messages: [...s.messages, aiMessage] }
-            : s
-        ));
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let fullContent = '';
+      let isDone = false;
+
+      while (!isDone) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trimEnd();
+          if (trimmed.startsWith('data:')) {
+            // Spring SseEmitter writes "data:TOKEN" (no separator space).
+            // The leading space in slice(5) IS part of the token content — never strip it.
+            const data = trimmed.slice(5);
+            if (data === '[DONE]') { isDone = true; break; }
+            if (data) {
+              // Decode escaped newlines sent from backend
+              fullContent += data.replace(/\\n/g, '\n');
+              setSessions(prev => prev.map(s =>
+                s.id === effectiveSessionId
+                  ? { ...s, messages: s.messages.map(m =>
+                      m.id === aiMsgId ? { ...m, content: fullContent } : m
+                    )}
+                  : s
+              ));
+            }
+          }
+        }
+      }
+
+      reader.cancel();
+
+      if (!fullContent) {
+        throw new Error('No content received from AI');
       }
 
     } catch (error: any) {
       console.error('Chat error:', error);
-      
-      // Add error message to chat
-      const errorMessage: ChatMessage = {
-        id: `msg-${Date.now()}-error`,
-        role: 'assistant',
-        content: `⚠️ **Error**: ${error.message || 'Failed to get AI response'}\n\nPlease check your internet connection and try again. If you're using Gemini API, make sure your API key is properly configured in the environment variables.`,
-        timestamp: new Date()
-      };
-
-      if (isTemporaryChat) {
-        setSessions(prev => prev.map(s => 
-          s.id === 'temp' 
-            ? { ...s, messages: [...s.messages, errorMessage] }
-            : s
-        ));
-      } else {
-        setSessions(prev => prev.map(s => 
-          s.id === session!.id 
-            ? { ...s, messages: [...s.messages, errorMessage] }
-            : s
-        ));
-      }
-
+      const errorContent = `⚠️ **Error**: ${error.message || 'Failed to get AI response'}\n\nPlease try again.`;
+      setSessions(prev => prev.map(s =>
+        s.id === effectiveSessionId
+          ? { ...s, messages: s.messages.map(m =>
+              m.id === aiMsgId ? { ...m, content: errorContent } : m
+            )}
+          : s
+      ));
       toast({
         title: 'Chat Error',
-        description: 'Failed to get AI response. Error message added to chat.',
+        description: 'Failed to get AI response. Error added to chat.',
         variant: 'destructive'
       });
     } finally {
@@ -742,6 +765,17 @@ function AiChatContent() {
             </div>
             
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setChatMode(chatMode === 'normal' ? 'chat_buddy' : 'normal')}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-full border font-medium transition-colors",
+                  chatMode === 'chat_buddy'
+                    ? "border-purple-400 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {chatMode === 'chat_buddy' ? '👋 Buddy' : '🤖 Normal'}
+              </button>
               {isTemporaryChat && (
                 <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 text-xs">
                   <Sparkles className="h-3 w-3 mr-1" />
@@ -828,6 +862,40 @@ function AiChatContent() {
                           );
                         })}
                       </div>
+                    </div>
+
+                    {/* Mode Selector */}
+                    <div>
+                      <h4 className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wider text-center">Chat Mode</h4>
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => setChatMode('normal')}
+                          className={cn(
+                            "px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                            chatMode === 'normal'
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border hover:border-muted-foreground/30"
+                          )}
+                        >
+                          🤖 Normal
+                        </button>
+                        <button
+                          onClick={() => setChatMode('chat_buddy')}
+                          className={cn(
+                            "px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                            chatMode === 'chat_buddy'
+                              ? "border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                              : "border-border hover:border-muted-foreground/30"
+                          )}
+                        >
+                          👋 Chat Buddy
+                        </button>
+                      </div>
+                      {chatMode === 'chat_buddy' && (
+                        <p className="text-xs text-center text-muted-foreground mt-2 max-w-xs mx-auto">
+                          Chat Buddy gets to know you and builds your AI profile
+                        </p>
+                      )}
                     </div>
 
                     {/* Suggested Prompts */}
@@ -1029,11 +1097,24 @@ function AiChatContent() {
                 <span className="text-[11px] text-muted-foreground/70">
                   {isTemporaryChat ? "🔒 Temporary — not saved" : "↵ Enter to send · Shift+Enter for new line"}
                 </span>
-                {isTemporaryChat && (
-                  <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 text-[10px] px-1.5 py-0 h-4">
-                    Temp
-                  </Badge>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setChatMode(chatMode === 'normal' ? 'chat_buddy' : 'normal')}
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full border font-medium transition-colors",
+                      chatMode === 'chat_buddy'
+                        ? "border-purple-400 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {chatMode === 'chat_buddy' ? '👋 Buddy' : '🤖 Normal'}
+                  </button>
+                  {isTemporaryChat && (
+                    <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 text-[10px] px-1.5 py-0 h-4">
+                      Temp
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>

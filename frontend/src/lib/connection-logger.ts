@@ -10,7 +10,7 @@
  */
 
 const POLL_INTERVAL_MS = 30_000; // 30 seconds
-const HEALTH_ENDPOINT = `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000').replace(/\/+$/, '')}/health`;
+const HEALTH_ENDPOINT = '/api/health';
 
 type ConnectionState = 'unknown' | 'up' | 'down';
 

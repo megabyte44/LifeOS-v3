@@ -1,6 +1,7 @@
 package com.lifos.backend.config;
 
 import com.lifos.backend.security.FirebaseAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -54,6 +55,8 @@ public class SecurityConfig {
 
             // All /api/** endpoints require a valid Firebase Bearer token
             .authorizeHttpRequests(auth -> auth
+                // Async/error dispatches re-use the committed response — no re-auth needed
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                 // CORS preflight requests carry no auth token — must be permitted
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Public health endpoint — used by the frontend connection logger, no auth needed
