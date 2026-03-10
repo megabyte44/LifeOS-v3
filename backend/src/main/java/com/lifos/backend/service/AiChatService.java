@@ -106,14 +106,14 @@ public class AiChatService {
                 headers.set("HTTP-Referer", "https://lifeos.app");
             }
 
-            ResponseEntity<JsonNode> resp = restTemplate.exchange(
-                    url, HttpMethod.POST, new HttpEntity<>(jsonBody, headers), JsonNode.class);
+            ResponseEntity<String> resp = restTemplate.exchange(
+                    url, HttpMethod.POST, new HttpEntity<>(jsonBody, headers), String.class);
 
-            String content = resp.getBody()
-                    .path("choices").get(0)
+            JsonNode root = objectMapper.readTree(resp.getBody());
+            String content = root.path("choices").get(0)
                     .path("message").path("content").asText();
 
-            String usedModel = resp.getBody().path("model").asText(model);
+            String usedModel = root.path("model").asText(model);
 
             AiChatResponse r = new AiChatResponse();
             r.setResult(content);
@@ -164,11 +164,11 @@ public class AiChatService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
-            ResponseEntity<JsonNode> resp = restTemplate.exchange(
-                    url, HttpMethod.POST, new HttpEntity<>(body, headers), JsonNode.class);
+            ResponseEntity<String> resp = restTemplate.exchange(
+                    url, HttpMethod.POST, new HttpEntity<>(objectMapper.writeValueAsString(body), headers), String.class);
 
-            String text = resp.getBody()
-                    .path("candidates").get(0)
+            JsonNode root = objectMapper.readTree(resp.getBody());
+            String text = root.path("candidates").get(0)
                     .path("content").path("parts").get(0)
                     .path("text").asText();
 

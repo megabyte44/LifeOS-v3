@@ -2,7 +2,8 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { startConnectionLogger } from '@/lib/connection-logger';
 
 function makeQueryClient() {
   return new QueryClient({
@@ -35,6 +36,9 @@ function makeQueryClient() {
 
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
+
+  // Start backend + DB connection polling on first render (browser only)
+  useEffect(() => { startConnectionLogger(); }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

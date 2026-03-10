@@ -56,6 +56,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // CORS preflight requests carry no auth token — must be permitted
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Public health endpoint — used by the frontend connection logger, no auth needed
+                .requestMatchers("/health").permitAll()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             );

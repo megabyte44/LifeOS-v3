@@ -35,12 +35,13 @@ public class OpenAiEmbeddingClient {
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(openAiKey);
 
-            HttpEntity<ObjectNode> entity = new HttpEntity<>(body, headers);
-            ResponseEntity<JsonNode> response = restTemplate.postForEntity(
-                    "https://api.openai.com/v1/embeddings", entity, JsonNode.class);
+            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(body), headers);
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    "https://api.openai.com/v1/embeddings", entity, String.class);
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                JsonNode data = response.getBody().get("data").get(0).get("embedding");
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode data = root.get("data").get(0).get("embedding");
                 float[] embedding = new float[data.size()];
                 for (int i = 0; i < data.size(); i++) {
                     embedding[i] = (float) data.get(i).asDouble();

@@ -28,6 +28,15 @@ public class AiConfigurationResolver {
         Map<String, Object> mergedModelConfig = mergeMaps(defaults.getModelConfig(), stored.getModelConfig());
         Map<String, Object> mergedApiKeys = mergeApiKeys(defaults.getApiKeys(), stored.getApiKeys());
 
+        // AI_PROVIDER env var is a hard operator override — it always wins over the DB stored value.
+        String envProviderOverride = aiFoundationProperties.getProvider();
+        if (!isBlank(envProviderOverride)) {
+            mergedModelConfig = new LinkedHashMap<>(mergedModelConfig);
+            mergedModelConfig.put("provider", envProviderOverride.trim().toLowerCase());
+            mergedModelConfig.remove("model"); // reset model so defaultModelFor() picks the right one
+            log.info("AI_PROVIDER override active — forcing provider={}", envProviderOverride);
+        }
+
         // If the stored provider has no API key, fall back to the best available provider.
         String provider = readString(mergedModelConfig, "provider");
         String keyForProvider = readString(mergedApiKeys, provider);
@@ -58,17 +67,13 @@ public class AiConfigurationResolver {
     }
 
     private String resolveBestAvailableProvider(Map<String, Object> apiKeys) {
-        if (!isBlank(readString(apiKeys, "openai"))
-                || !isBlank(aiFoundationProperties.getEmbedding().getApiKey())
-                || !isBlank(System.getenv("OPENAI_API_KEY"))) {
+        if (!isBlank(readString(apiKeys, "openai")) || !isBlank(aiFoundationProperties.getOpenaiApiKey())) {
             return "openai";
         }
-        if (!isBlank(readString(apiKeys, "openrouter")) || !isBlank(System.getenv("OPENROUTER_API_KEY"))) {
+        if (!isBlank(readString(apiKeys, "openrouter")) || !isBlank(aiFoundationProperties.getOpenrouterApiKey())) {
             return "openrouter";
         }
-        if (!isBlank(readString(apiKeys, "gemini"))
-                || !isBlank(System.getenv("GEMINI_API_KEY"))
-                || !isBlank(System.getenv("GOOGLE_API_KEY"))) {
+        if (!isBlank(readString(apiKeys, "gemini")) || !isBlank(aiFoundationProperties.getGeminiApiKey())) {
             return "gemini";
         }
         return null;
@@ -81,15 +86,11 @@ public class AiConfigurationResolver {
         }
 
         return switch (provider) {
-            case "gemini" -> firstNonBlank(
-                    System.getenv("GEMINI_API_KEY"),
-                    System.getenv("GOOGLE_API_KEY")
-            );
-            case "openrouter" -> System.getenv("OPENROUTER_API_KEY");
+            case "gemini" -> aiFoundationProperties.getGeminiApiKey();
+            case "openrouter" -> aiFoundationProperties.getOpenrouterApiKey();
             case "openai" -> firstNonBlank(
                     readString(resolve().getApiKeys(), "openai"),
-                    aiFoundationProperties.getEmbedding().getApiKey(),
-                    System.getenv("OPENAI_API_KEY")
+                    aiFoundationProperties.getOpenaiApiKey()
             );
             default -> null;
         };
@@ -112,15 +113,15 @@ public class AiConfigurationResolver {
         String provider = resolveDefaultProvider();
         Map<String, Object> modelConfig = new LinkedHashMap<>();
         modelConfig.put("provider", provider);
-        modelConfig.put("model", firstNonBlank(System.getenv("AI_MODEL"), defaultModelFor(provider)));
+        modelConfig.put("model", firstNonBlank(aiFoundationProperties.getModel(), defaultModelFor(provider)));
         modelConfig.put("temperature", 0.7);
         modelConfig.put("maxTokens", 4096);
         modelConfig.put("topP", 1.0);
 
         Map<String, Object> apiKeys = new LinkedHashMap<>();
-        putIfNotBlank(apiKeys, "openai", firstNonBlank(aiFoundationProperties.getEmbedding().getApiKey(), System.getenv("OPENAI_API_KEY")));
-        putIfNotBlank(apiKeys, "openrouter", System.getenv("OPENROUTER_API_KEY"));
-        putIfNotBlank(apiKeys, "gemini", firstNonBlank(System.getenv("GEMINI_API_KEY"), System.getenv("GOOGLE_API_KEY")));
+        putIfNotBlank(apiKeys, "openai", aiFoundationProperties.getOpenaiApiKey());
+        putIfNotBlank(apiKeys, "openrouter", aiFoundationProperties.getOpenrouterApiKey());
+        putIfNotBlank(apiKeys, "gemini", aiFoundationProperties.getGeminiApiKey());
 
         Map<String, Object> systemInstructions = new LinkedHashMap<>();
         systemInstructions.put("casualBuddy", "You are LifeOS, a concise and practical assistant. Give direct, useful answers and stay grounded in the user's request.");
@@ -137,14 +138,14 @@ public class AiConfigurationResolver {
     }
 
     private String resolveDefaultProvider() {
-        String explicitProvider = System.getenv("AI_PROVIDER");
+        String explicitProvider = aiFoundationProperties.getProvider();
         if (!isBlank(explicitProvider)) {
             return explicitProvider.trim().toLowerCase();
         }
-        if (!isBlank(System.getenv("OPENROUTER_API_KEY"))) {
+        if (!isBlank(aiFoundationProperties.getOpenrouterApiKey())) {
             return "openrouter";
         }
-        if (!isBlank(firstNonBlank(System.getenv("GEMINI_API_KEY"), System.getenv("GOOGLE_API_KEY")))) {
+        if (!isBlank(aiFoundationProperties.getGeminiApiKey())) {
             return "gemini";
         }
         return "openai";

@@ -18,11 +18,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate          # Flyway manages schema; Hibernate only validates
-    show-sql: true                 # Log SQL statements (disable in production)
+    show-sql: false                # Handled by logback (org.hibernate.SQL logger)
     open-in-view: false            # Best practice: avoid lazy-loading in controllers
     properties:
       hibernate:
-        format_sql: true
+        format_sql: true           # Pretty-print SQL logged via logback
+        highlight_sql: true        # ANSI-colour SQL keywords in console
         # dialect is auto-detected by Hibernate 7 — no need to specify
 
   # ── Flyway ──
@@ -45,18 +46,19 @@ vapid:
   private-key: ${VAPID_PRIVATE_KEY:}
   subject: "mailto:admin@lifeos.app"
 
-# ── Logging ──
+# ── Logging — detailed config in logback-spring.xml ──
 logging:
+  config: classpath:logback-spring.xml
   level:
-    com.lifos.backend: DEBUG
-    org.springframework.security: DEBUG
+    root: INFO
 
 ai:
+  provider: ${AI_PROVIDER:}
+  model: ${AI_MODEL:}
+  openai-api-key: ${OPENAI_API_KEY:}
+  openrouter-api-key: ${OPENROUTER_API_KEY:}
+  gemini-api-key: ${GEMINI_API_KEY:${GOOGLE_API_KEY:}}
   embedding:
-    provider: openai
-    model: text-embedding-3-small
-    base-url: https://api.openai.com/v1
-    api-key: ${OPENAI_API_KEY:}
     dimensions: 1536
     max-input-chars: 24000
   streaming:
