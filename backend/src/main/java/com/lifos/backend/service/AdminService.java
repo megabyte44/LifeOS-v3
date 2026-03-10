@@ -78,6 +78,10 @@ public class AdminService {
         if (req.getModelConfig() != null) row.setModelConfig(req.getModelConfig());
         if (req.getApiKeys() != null) row.setApiKeys(req.getApiKeys());
         if (req.getRagEnabled() != null) row.setRagEnabled(req.getRagEnabled());
+        if (req.getInsightsEnabled() != null) row.setInsightsEnabled(req.getInsightsEnabled());
+        if (req.getInsightsCron() != null) row.setInsightsCron(req.getInsightsCron());
+        if (req.getEvaluationEnabled() != null) row.setEvaluationEnabled(req.getEvaluationEnabled());
+        if (req.getEvaluationSampleRate() != null) row.setEvaluationSampleRate(req.getEvaluationSampleRate());
         row.setUpdatedBy(uid);
         return toAiConfigResponse(aiConfigRepo.save(row));
     }
@@ -187,6 +191,10 @@ public class AdminService {
         r.setModelConfig(c.getModelConfig());
         r.setApiKeys(c.getApiKeys());
         r.setRagEnabled(c.getRagEnabled());
+        r.setInsightsEnabled(c.getInsightsEnabled());
+        r.setInsightsCron(c.getInsightsCron());
+        r.setEvaluationEnabled(c.getEvaluationEnabled());
+        r.setEvaluationSampleRate(c.getEvaluationSampleRate());
         r.setUpdatedAt(c.getUpdatedAt());
         r.setUpdatedBy(c.getUpdatedBy());
         return r;

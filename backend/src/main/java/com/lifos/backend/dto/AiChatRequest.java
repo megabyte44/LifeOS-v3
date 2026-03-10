@@ -8,6 +8,7 @@ public class AiChatRequest {
     private List<AiMessage> messages;
     private String personality;    // 'casual' | 'professional'
     private String model;          // optional override
+    private String mode;           // 'normal' (default) | 'chat_buddy'
 
     @Data
     public static class AiMessage {

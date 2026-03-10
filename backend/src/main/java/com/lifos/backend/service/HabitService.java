@@ -22,6 +22,7 @@ public class HabitService {
 
     private final HabitRepository habitRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)

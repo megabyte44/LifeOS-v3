@@ -53,6 +53,28 @@ public class UserProfile {
     @Column(name = "life_motto", columnDefinition = "TEXT")
     private String lifeMotto;
 
+    // ── Dynamic enrichment fields (V24) ─────────────────────────────
+
+    @Column(name = "profile_completeness")
+    @Builder.Default
+    private Integer profileCompleteness = 0;
+
+    @Column(name = "last_enriched_at")
+    private Instant lastEnrichedAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "enrichment_sources", columnDefinition = "jsonb")
+    private JsonNode enrichmentSources;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "pending_questions", columnDefinition = "jsonb")
+    private JsonNode pendingQuestions;
+
+    @Column(name = "life_summary", columnDefinition = "TEXT")
+    private String lifeSummary;
+
+    // ── Timestamps ──────────────────────────────────────────────────
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

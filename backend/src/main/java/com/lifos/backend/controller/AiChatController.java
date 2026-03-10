@@ -16,7 +16,6 @@ public class AiChatController {
 
     @PostMapping("/chat")
     public AiChatResponse chat(@RequestBody AiChatRequest req) {
-        // Current user uid is available if needed for rate limiting etc.
-        return aiChatService.chat(req);
+        return aiChatService.chat(req, SecurityUtils.getCurrentUserUid());
     }
 }

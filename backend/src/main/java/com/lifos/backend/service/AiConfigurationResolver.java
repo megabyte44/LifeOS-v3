@@ -61,6 +61,10 @@ public class AiConfigurationResolver {
                 .modelConfig(mergedModelConfig)
                 .apiKeys(mergedApiKeys)
                 .ragEnabled(stored.getRagEnabled() != null ? stored.getRagEnabled() : defaults.getRagEnabled())
+                .insightsEnabled(stored.getInsightsEnabled() != null ? stored.getInsightsEnabled() : false)
+                .insightsCron(stored.getInsightsCron() != null ? stored.getInsightsCron() : "0 0 20 * * *")
+                .evaluationEnabled(stored.getEvaluationEnabled() != null ? stored.getEvaluationEnabled() : false)
+                .evaluationSampleRate(stored.getEvaluationSampleRate() != null ? stored.getEvaluationSampleRate() : 1)
                 .updatedAt(stored.getUpdatedAt())
                 .updatedBy(stored.getUpdatedBy())
                 .build();

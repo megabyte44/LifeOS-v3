@@ -1,170 +1,267 @@
 # Plan: LifeOS Second Brain — RAG AI Integration + RAGAS Evaluation
 
 > **Project context**: LifeOS is a **personal/portfolio group project** — built to showcase to interviewers and friends. Not a multi-user SaaS. The goal is demonstrating deep technical competence: hybrid RAG pipelines, real-time streaming, event-driven architecture, LLM-as-judge evaluation, and a polished full-stack experience. Every feature should be **demo-ready** and explainable in an interview.
+>
+> **Current date**: March 10, 2026
+>
+> **Follow the checkpoint order in `docs/AI_CHECKPOINTS.md` strictly.** Do not start the next checkpoint until the current one is verified working.
 
 Transform the existing AI chat proxy into a context-aware **"Second Brain"** using pgvector semantic search + SQL structured queries, SSE streaming, proactive push insights, and **RAGAS evaluation metrics** to measure pipeline quality.
 
 ---
 
-## Architecture
+## Current Build State
+
+### ✅ Done — Infrastructure & Scaffolding
+
+All database migrations exist and are applied:
+- V15_1: pgvector extension enabled
+- V16: `user_profiles` table
+- V17: `embeddings` table (vector(1536) + IVFFlat index)
+- V18: `activity_log` table
+- V19: note tags fields
+- V21: `conversation_memories` table
+- V22: AI config RAG columns
+- V23: `rag_evaluations` + `rag_test_cases` tables
+
+All JPA entities exist: `UserProfile`, `Embedding`, `ActivityLog`, `ConversationMemory`, `RagEvaluation`, `RagTestCase`
+
+All Spring Data repositories exist for every entity above.
+
+Services partially scaffolded: `EmbeddingService.java`, `OpenAiEmbeddingClient.java`, `ActivityLogService.java`
+
+**Checkpoint 0 (Plain AI Chat) — COMPLETE.**
+- `AiChatController` → `POST /api/ai/chat` works end-to-end.
+- Multi-provider support (OpenRouter, OpenAI, Gemini) via `AiConfigurationResolver`.
+- Personality-based system prompts from `AiConfiguration.systemInstructions`.
+
+### ❌ Not Yet Built — Active Work Queue
+
+The following are missing and must be built in checkpoint order:
+
+| Checkpoint | What's missing |
+|---|---|
+| **1 — Streaming** | `POST /api/ai/chat/stream` SSE endpoint; frontend SSE consumer |
+| **2 — Profile Context** | ✅ DONE — `UserProfileService`, `UserProfileController`, two AI modes (`normal` / `chat_buddy`), profile injected into `AiChatService` prompt |
+| **3 — Structured Snapshot** | `StructuredContextService`, `PromptAssemblyService`; wire into chat |
+| **4 — Vector Search** | `EmbeddingEventListener` (Spring async events on Note/Goal save); `searchSimilar()` wired into `PromptAssemblyService` |
+| **5 — Conversation Memory** | `ConversationMemoryService`, `ConversationMemoryController`, `ConversationMemoryListener` |
+| **6 — Activity Intelligence** | Hook `ActivityLogService` into `HabitService`, `GoalService`, `GymService`, `TransactionService`, `TodoService` |
+| **7 — Proactive Insights** | `InsightGeneratorService` (`@Scheduled`), push via `NotificationDispatchService` |
+| **8 — RAG Evaluation** | `RagEvaluationService`, `RagEvaluationController`, `RagEvaluationListener`, admin dashboard page |
+
+---
+
+---
+
+## Target Architecture (Final State)
 
 ```
 User Message (Next.js chat UI)
     │
-    ▼
-POST /api/ai/chat/stream (SSE)
+    ├── mode: "normal"  ─── personality-based system prompt
+    ├── mode: "chat_buddy" ─ interviewer prompt + pending questions
     │
-    ├──► PromptAssemblyService
+    ▼
+POST /api/ai/chat/stream (SSE)  ← NEXT TO BUILD (Checkpoint 1)
+    │
+    ├──► buildSystemPrompt(mode, userUid)   ← ✅ Checkpoint 2 DONE
+    │       └──► UserProfileService.buildProfileContext()  (injected for all modes)
+    │
+    ├──► PromptAssemblyService              ← Checkpoint 3
     │       ├──► StructuredContextService (SQL)
     │       │     Profile, Habits, Goals, Gym, Finance, Schedule, ActivityLog
-    │       ├──► EmbeddingService.searchSimilar() (pgvector cosine)
+    │       ├──► EmbeddingService.searchSimilar() (pgvector cosine)  ← Checkpoint 4
     │       │     → Top 5 matching notes, goal descriptions, journals
+    │       ├──► ConversationMemoryService (active memories)         ← Checkpoint 5
     │       └──► Assemble: system_prompt + context + conversation + message
     │
     ▼
 LLM Provider (streaming) → SSE chunks → Frontend token rendering
     │
-    └──► @Async RagEvaluationListener
-              ├── Faithfulness (claims vs context)
-              ├── Answer Relevancy (cosine similarity of generated Qs)
-              ├── Context Precision (relevant chunks / total)
-              └── Store scores → rag_evaluations table → Admin Dashboard
+    ├──► @Async ProfileEnrichmentListener         ← Checkpoint 5
+    │         Extract facts from conversation → applyEnrichment() → update profile
+    │
+    └──► @Async RagEvaluationListener             ← Checkpoint 8
+              ├── Faithfulness, Answer Relevancy, Context Precision
+              └── Store scores → rag_evaluations → Admin Dashboard
 
 Background:
-  @Scheduled InsightGeneratorService → detect patterns → LLM insight → push notification
+  @Scheduled InsightGeneratorService → detect patterns → LLM insight → push notification  ← Checkpoint 7
 ```
 
 ---
 
-## Phase 1: Database & Embedding Foundation
+## NEXT: Immediate Work Queue (Checkpoints 1–3)
 
-| Step | What | Migration |
-|------|------|-----------|
-| 1.1 | Install pgvector extension, add `hibernate-vector` to pom.xml | — |
-| 1.2 | **UserProfile** table — age, bio, philosophy, interests, sleep target, occupation, life motto | V16 |
-| 1.3 | **Embeddings** table — `vector(1536)` column, source_type, content_hash (SHA-256 dedup), IVFFlat index | V17 |
-| 1.4 | **ActivityLog** table — feature, action, entity_id, summary, metadata (JSONB) | V18 |
-| 1.5 | **Note tagging** — add tags (JSONB), linked_feature, linked_entity_id to notes | V19 |
-| 1.6 | **ConversationMemories** table — extracted user facts from chats, with supersession tracking | V21 |
+Implement in this exact order. Verify each checkpoint before moving to the next.
 
-### Step 1.1 — Install pgvector extension
-- Enable `pgvector` in PostgreSQL (`CREATE EXTENSION IF NOT EXISTS vector;`)
-- Add `hibernate-vector` dependency to pom.xml (e.g., `org.hibernate.orm:hibernate-vector`)
+### ▶ CHECKPOINT 1 — Streaming SSE
 
-### Step 1.2 — V16: UserProfile table (identity/demographic data)
-- Fields: `id (UUID)`, `user_uid (FK, unique)`, `age (int)`, `bio (TEXT)`, `philosophy (TEXT)`, `interests (JSONB array)`, `sleep_target_hours (float)`, `daily_calorie_target (int)`, `protein_target_override (int)`, `occupation (VARCHAR)`, `timezone (VARCHAR)`, `life_motto (TEXT)`, `created_at`, `updated_at`
-- Entity: `UserProfile.java`, Repository, Service, DTO
-- Endpoints: `GET /api/profile`, `PUT /api/profile`
-- Gives the AI hard facts: *"You're 25, a software engineer, aiming for 8h sleep and 150g protein"*
+**Goal**: Token-by-token streaming. No retrieval yet — prompt content stays identical to `/chat`.
 
-### Step 1.3 — V17: Embeddings table (vector storage)
-- Fields: `id (UUID)`, `user_uid (FK)`, `source_type (VARCHAR)` — "note", "goal_description", "goal_motive", "goal_note", "user_philosophy", `source_id (UUID)`, `content_hash (VARCHAR)` — SHA-256 of source text to detect changes, `content_preview (TEXT)` — first 200 chars for debugging, `embedding (vector(1536))` — OpenAI text-embedding-3-small dimension, `created_at`, `updated_at`
-- Indexes: `ivfflat` index on `embedding` column for fast cosine similarity, composite index on `(user_uid, source_type)`
+**Backend**:
+1. Add `WebClient` bean in `AppConfig.java` (for non-blocking HTTP streaming to LLM provider).
+2. Add `POST /api/ai/chat/stream` in `AiChatController` returning `SseEmitter`.
+3. Add `streamChat(AiChatRequest, SseEmitter)` method in `AiChatService`:
+   - Same prompt assembly as `chat()` (system prompt + messages from request).
+   - Use `WebClient` instead of `RestTemplate` to receive the streaming response from the provider.
+   - For OpenRouter/OpenAI: set `"stream": true` in request body; parse `data:` SSE lines from provider, extract `choices[0].delta.content`, emit as `data: {"token":"..."}\n\n`.
+   - For Gemini: use streaming REST endpoint; parse chunk JSON to extract text.
+   - On stream end: emit `data: [DONE]\n\n` and complete the emitter.
+   - On error: emit `data: {"error":"..."}\n\n` and complete with error.
+4. Keep `POST /api/ai/chat` (non-streaming) fully working as fallback.
 
-### Step 1.4 — V18: ActivityLog table (cross-feature timeline)
-- Fields: `id (UUID)`, `user_uid (FK)`, `feature (VARCHAR)` — "habit", "goal", "gym", "expense", "note", "todo", "planner", `action (VARCHAR)` — "created", "completed", "updated", "deleted", "streak_hit", "streak_broken", "budget_exceeded", `entity_id (UUID)`, `summary (TEXT)` — human-readable: "Completed habit 'Meditation' (Day 15 streak)", `metadata (JSONB)`, `created_at`
-- Index on `(user_uid, created_at DESC)` for temporal queries
+**Frontend**:
+1. Add `sendMessageStream(req, onToken, onDone, onError)` in `src/services/ai-chat.service.ts`:
+   - Uses `fetch()` + `ReadableStream` reader.
+   - Calls `POST /api/ai/chat/stream`.
+   - Calls `onToken(token)` for each `data:` chunk.
+   - Calls `onDone()` on `[DONE]`.
+2. Update `src/app/ai-chat/page.tsx`:
+   - Replace the current blocking call with `sendMessageStream`.
+   - Append each incoming token to the AI message bubble in real-time.
+   - Show a blinking cursor/spinner while streaming.
+   - Fallback: if `sendMessageStream` fails, retry with non-streaming `sendMessage`.
 
-### Step 1.5 — V19: Add note tagging fields
-- Add to `notes` table: `tags (JSONB array)` — ["journal", "philosophy", "gym-log", "finance-review", "goal-reflection", "daily-review", "idea"], `linked_feature (VARCHAR)` — nullable, e.g., "goal", "habit", "gym", `linked_entity_id (UUID)` — nullable
-- Update `Note.java` entity with new fields, update DTOs
+**Verification** (must pass before proceeding):
+- Network tab shows incremental SSE chunks (not one large response).
+- UI text appears word by word.
+- Non-streaming `POST /api/ai/chat` still returns a complete response.
 
 ---
 
-## Phase 2: Embedding Pipeline
+### ▶ CHECKPOINT 2 — Dynamic Profile Context + Two AI Modes — ✅ COMPLETE
 
-| Step | What |
-|------|------|
-| 2.1 | `OpenAiEmbeddingClient` — calls `text-embedding-3-small`, returns `float[1536]` |
-| 2.2 | `EmbeddingService` — `embedAndStore()` (hash check → skip if unchanged), `searchSimilar()` (cosine), `deleteBySource()` |
-| 2.3 | Async events: `NoteUpdatedEvent`, `GoalUpdatedEvent`, `UserProfileUpdatedEvent` → `EmbeddingEventListener` embeds on save |
-| 2.4 | **Conversation memory extraction** — LLM extracts user facts from chat → stores + embeds with dedup/supersession |
+**Goal**: Profile is built **dynamically** from LifeOS data + conversations, not a static form.
 
-**Embedded**: Notes text, Goal descriptions+motives, GoalNotes, UserProfile philosophy/bio/motto, **extracted conversation memories**
+**Design — Dynamic Profile Building**:
+The user profile is **extracted**, not manually filled. Three sources feed it:
+1. **LifeOS data**: Notes, Goals, Habits → `UserProfileService.gatherEnrichmentContext()` collects raw material; LLM extracts bio/philosophy/interests from it.
+2. **AI conversations**: When the user tells the AI something personal, `ConversationMemoryService` (Checkpoint 5) stores the fact, and a profile enrichment pass synthesizes it.
+3. **Chat Buddy mode**: The AI proactively interviews the user to fill profile gaps.
+
+**Implemented Files**:
+- `V24__enhance_user_profiles_dynamic.sql` — adds `profile_completeness`, `last_enriched_at`, `enrichment_sources` (JSONB), `pending_questions` (JSONB), `life_summary` (TEXT).
+- `UserProfile.java` — entity updated with new fields.
+- `UserProfileService.java` — core service with:
+  - `getOrCreate(userUid)` / `getProfile()` / `updateProfile()` — CRUD
+  - `buildProfileContext(userUid)` — generates the natural-language context block injected into every AI prompt
+  - `gatherEnrichmentContext(userUid)` — collects raw data from Notes, Goals, Habits, ConversationMemories for LLM extraction
+  - `applyEnrichment(...)` — merges LLM-extracted fields (bio, philosophy, interests, lifeSummary) into the profile, tracks enrichment source counts
+  - `generatePendingQuestions(userUid)` — inspects empty profile fields and generates targeted questions for Chat Buddy
+  - `calculateCompleteness()` — 0–100 score based on 7 key fields
+- `UserProfileController.java` — `GET /api/profile`, `PUT /api/profile`, `GET /api/profile/pending-questions`
+- `UpdateUserProfileRequest.java`, `UserProfileDetailResponse.java` — DTOs
+
+**Two AI Modes** (in `AiChatRequest.mode`):
+| Mode | System Prompt | Behavior |
+|------|--------------|----------|
+| `normal` (default) | Personality-based (casual/professional) + profile context | Standard AI assistant |
+| `chat_buddy` | Warm interviewer prompt + what's known + pending questions | Proactively asks ONE question at a time, reacts naturally, explores topics to fill profile gaps |
+
+**How Chat Buddy works**:
+- `AiChatService.buildChatBuddyPrompt(userUid)` constructs a system prompt that:
+  - Sets the AI persona as a "warm, curious friend"
+  - Injects `=== WHAT YOU ALREADY KNOW ===` (existing profile data)
+  - Injects `=== TOPICS TO EXPLORE ===` (from `generatePendingQuestions`)
+  - Rules: ask ONE question at a time, don't be a survey bot, react naturally, mix get-to-know-you with life check-ins
+- Profile context is injected for **both** modes.
+
+**Health fields** (sleep, calories, protein): Still in the schema but deprioritized — not part of Chat Buddy's question flow, not included in `calculateCompleteness()`. Available for manual setting via `PUT /api/profile` if the user wants.
+
+**Frontend work remaining**:
+1. Add mode toggle (Normal / Chat Buddy) to `ai-chat/page.tsx` — send `mode: "chat_buddy"` in request.
+2. Add "AI Profile" read-only card in profile/settings page showing what the AI knows (bio, philosophy, interests, completeness %).
+3. Add `UserProfile` type to `src/types/index.ts`.
+4. Add `getProfile()` / `updateProfile()` in `src/services/user.service.ts`.
+
+**Verification**:
+- Chat in `normal` mode → AI has profile context if available.
+- Switch to `chat_buddy` mode → AI greets warmly and asks a natural getting-to-know-you question.
+- After several buddy conversations → profile fields gradually populate.
+- `GET /api/profile` shows `profileCompleteness` increasing over time.
+
+---
+
+---
+
+## Phase 1: Database & Embedding Foundation — ✅ COMPLETE
+
+All migrations applied. All entities and repositories exist. No action required here.
+
+| Step | What | Migration | Status |
+|------|------|-----------|--------|
+| 1.1 | pgvector extension, hibernate-vector in pom.xml | V15_1 | ✅ Done |
+| 1.2 | **UserProfile** table | V16 | ✅ Done |
+| 1.3 | **Embeddings** table (vector(1536), IVFFlat) | V17 | ✅ Done |
+| 1.4 | **ActivityLog** table | V18 | ✅ Done |
+| 1.5 | **Note tagging** fields | V19 | ✅ Done |
+| 1.6 | **ConversationMemories** table | V21 | ✅ Done |
+| 1.7 | **RagEvaluations + RagTestCases** tables | V23 | ✅ Done |
+| 1.8 | **UserProfile dynamic enrichment** columns | V24 | ✅ Done |
+
+---
+
+## Phase 2: Embedding Pipeline — ⚠️ PARTIALLY DONE
+
+| Step | What | Status |
+|------|------|--------|
+| 2.1 | `OpenAiEmbeddingClient` — calls `text-embedding-3-small`, returns `float[1536]` | ✅ Done |
+| 2.2 | `EmbeddingService` — `embedAndStore()`, `searchSimilar()`, `deleteBySource()` | ✅ Done |
+| 2.3 | Async events: `NoteUpdatedEvent`, `GoalUpdatedEvent` → `EmbeddingEventListener` | ❌ Build in Checkpoint 4 |
+| 2.4 | **Conversation memory extraction** — LLM extracts user facts from chat → stores + embeds | ❌ Build in Checkpoint 5 |
+
+**Embedded**: Notes text, Goal descriptions+motives, GoalNotes, UserProfile philosophy/bio/motto, extracted conversation memories
 **NOT embedded**: Structured numbers (habits, transactions, gym stats) — those use SQL
 
-### Step 2.1 — OpenAI Embedding Client
-- New service `OpenAiEmbeddingClient.java`
-- Calls `POST https://api.openai.com/v1/embeddings` with model `text-embedding-3-small`
-- Input: text string, Output: `float[1536]`
-- Reads API key from `AiConfiguration.apiKeys["openai"]` (already exists in DB)
+### Step 2.3 — Async Embedding on Save (Checkpoint 4)
+- Use Spring `@Async` + `@EventListener` pattern.
+- Define domain events in `event/` package: `NoteUpdatedEvent`, `GoalUpdatedEvent`, `UserProfileUpdatedEvent`.
+- Publish events from:
+  - `NoteService.create/update` → `NoteUpdatedEvent(userUid, noteId, title + " " + flattenedContent)`
+  - `GoalService.create/update` → `GoalUpdatedEvent(userUid, goalId, title + " " + motive + " " + description)`
+  - `UserProfileService.update` → `UserProfileUpdatedEvent(userUid, profileId, philosophy + bio + lifeMotto)`
+- `EmbeddingEventListener.java` handles all events `@Async`:
+  - Calls `EmbeddingService.embedAndStore()` for each event.
+  - On delete events: calls `EmbeddingService.deleteBySource()`.
+- Requires `@EnableAsync` on a config class and an `AsyncTaskExecutor` bean.
 
-### Step 2.2 — EmbeddingService
-- New service `EmbeddingService.java`
-- Methods:
-  - `embedAndStore(userUid, sourceType, sourceId, text)` — hash text, skip if unchanged, call OpenAI, upsert embedding
-  - `deleteBySource(sourceType, sourceId)` — cleanup on entity delete
-  - `searchSimilar(userUid, queryText, limit)` — embed query, then pgvector cosine search `ORDER BY embedding <=> query_vector LIMIT N`
-- Content preprocessing: strip markdown syntax, truncate to ~8000 tokens, concat title + content for notes
-
-### Step 2.3 — Async Embedding on Save
-- Use Spring `@Async` + `@EventListener` pattern
-- Define domain events: `NoteUpdatedEvent`, `GoalUpdatedEvent`, `UserProfileUpdatedEvent`
-- Publish events from `NoteService.create/update`, `GoalService.create/update`, `UserProfileService.update`
-- `EmbeddingEventListener.java` handles events asynchronously:
-  - **Note saved**: embed `title + " " + flattenedContent` (extract text from JSONB)
-  - **Goal saved**: embed `title + " " + motive + " " + description`
-  - **GoalNote saved**: embed `title + " " + content`
-  - **UserProfile saved**: embed `philosophy + " " + bio + " " + lifeMotto`
-- On delete: remove corresponding embedding rows
-
-### Step 2.4 — Conversation Memory Extraction (learn from chat)
-The second brain should **learn from what the user tells it**. When a user says *"I just got promoted to senior engineer"* or *"I've been struggling with sleep lately"*, that becomes a reusable memory — not just lost in chat history.
+### Step 2.4 — Conversation Memory Extraction (Checkpoint 5)
+The second brain learns from what the user tells it. When a user says *"I just got promoted to senior engineer"*, that becomes a reusable memory.
 
 **How it works:**
-- After each RAG chat response completes (same event hook as RAGAS), extract user-revealed facts
-- New `ConversationMemoryService.java`:
-  - Takes the user's messages from the conversation (not the AI's responses)
-  - Calls LLM with an extraction prompt:
+- After each RAG chat response completes (same `@Async` event hook), extract user-revealed facts.
+- `ConversationMemoryService.java`:
+  - Takes the user messages from the conversation (not AI responses).
+  - Calls LLM with extraction prompt:
     ```
-    Extract any personal facts, preferences, life updates, decisions, feelings, 
-    or insights the user revealed about themselves. Return as a JSON array of 
+    Extract any personal facts, preferences, life updates, decisions, feelings,
+    or insights the user revealed about themselves. Return as a JSON array of
     short statements. Return empty array if nothing notable.
-    
-    Examples: ["Got promoted to senior engineer", "Struggling with sleep this week", 
-    "Decided to switch from PPL to Upper/Lower split", "Wants to save $5000 by June"]
+    Examples: ["Got promoted to senior engineer", "Struggling with sleep this week"]
     ```
-  - Each extracted statement gets:
-    1. Stored in a new **`conversation_memories`** table (for browsability/management)
-    2. Embedded into the `embeddings` table with `source_type = "conversation_memory"`
+  - Each extracted statement:
+    1. Stored in `conversation_memories` table.
+    2. Embedded into `embeddings` with `source_type = "conversation_memory"`.
 
-**New table — V21: conversation_memories**
-- `id (UUID)`, `user_uid (FK)`, `memory_text (TEXT)` — the extracted statement, `source_conversation_date (TIMESTAMP)` — when the conversation happened, `category (VARCHAR)` — auto-classified: "life_update", "preference", "feeling", "decision", "goal", "insight", `confidence (FLOAT)` — LLM's confidence in the extraction (0-1), `superseded_by (UUID, nullable)` — points to newer memory that updates this one, `active (BOOLEAN, default true)` — false if superseded or user-deleted, `created_at`
-- Index on `(user_uid, active, created_at DESC)`
+**Deduplication**:
+- Before storing, vector-search existing memories for similarity > 0.92.
+- If found: LLM judges if new fact updates the old (supersession) or is a duplicate (skip).
+- If superseded: mark old as `active=false, superseded_by=new_id`.
 
-**Deduplication & contradiction handling:**
-- Before storing, vector-search existing memories for high similarity (>0.92 cosine)
-- If found: LLM judges if the new fact **updates** the old one (e.g., "sleeping 6 hours" supersedes "sleeping 5 hours") → mark old as `active=false, superseded_by=new_id`
-- If found but **same meaning**: skip (don't create duplicate)
-- If not found: store as new memory
-
-**Memory context injection** (added to PromptAssemblyService):
-- Query: `SELECT memory_text FROM conversation_memories WHERE user_uid=? AND active=true ORDER BY created_at DESC LIMIT 20`
-- Injected as a new context section:
-  ```
-  === THINGS YOU'VE TOLD ME ===
-  - Got promoted to senior engineer (2 days ago)
-  - Training for a half marathon in April
-  - Prefers evening workouts over morning
-  - Wants to reduce sugar intake
-  ```
-
-**Memory management:**
-- Endpoint: `GET /api/memories` — list active conversation memories (see what the AI "remembers")
-- Endpoint: `DELETE /api/memories/{id}` — delete a memory you don't want the AI to use
-- Show a "What I remember about you" section in the profile/settings page — great demo moment in interviews
-
-**Interview talking points**: event-driven extraction, vector dedup with cosine threshold, supersession chain for contradictions, LLM-as-classifier for categories
-
+**Memory endpoints** (`ConversationMemoryController.java`):
+- `GET /api/memories` — list active memories.
+- `DELETE /api/memories/{id}` — user-controlled deletion.
 
 ---
 
-## Phase 3: Hybrid Context Assembly (parallel with Phase 2)
+## Phase 3: Hybrid Context Assembly — ❌ CHECKPOINT 3
 
-| Step | What |
-|------|------|
-| 3.1 | `StructuredContextService` — SQL queries to build natural-language snapshot (~2000 tokens): profile, habits (streaks), goals (progress %), gym (today's workout, protein), finance (budget status), schedule (today's plan), activity log (last 10) |
-| 3.2 | `PromptAssemblyService` — stitches: system prompt → user profile → life snapshot → recent activity → top 5 vector results → conversation → user message. Budget: ~4000 tokens context |
+| Step | What | Status |
+|------|------|--------|
+| 3.1 | `StructuredContextService` — SQL snapshot (~2000 tokens) | ❌ Build in Checkpoint 3 |
+| 3.2 | `PromptAssemblyService` — stitches all context sources; wire into `AiChatService` | ❌ Build in Checkpoint 3 |
 
 ### Step 3.1 — StructuredContextService
 - New service `StructuredContextService.java`
@@ -205,13 +302,13 @@ The second brain should **learn from what the user tells it**. When a user says 
 
 ---
 
-## Phase 4: Streaming RAG Chat Endpoint
+## Phase 4: Streaming RAG Chat Endpoint — ❌ CHECKPOINT 1 (start here)
 
-| Step | What |
-|------|------|
-| 4.1 | **Backend**: `POST /api/ai/chat/stream` → SSE via `SseEmitter`. Streaming WebClient call to LLM. Keep old `/chat` as fallback |
-| 4.2 | **Frontend**: `fetch()` + `ReadableStream` reader in ai-chat/page.tsx. Token-by-token rendering |
-| 4.3 | **Profile page**: Extended form in profile/page.tsx — identity data that feeds into AI context |
+| Step | What | Status |
+|------|------|--------|
+| 4.1 | **Backend**: `POST /api/ai/chat/stream` → SSE. Keep `/chat` as fallback | ❌ Checkpoint 1 |
+| 4.2 | **Frontend**: SSE consumer in ai-chat/page.tsx. Token-by-token rendering | ❌ Checkpoint 1 |
+| 4.3 | **Profile page**: Extended form for identity data | ❌ Checkpoint 2 |
 
 ### Step 4.1 — Backend SSE Streaming
 - New endpoint: `POST /api/ai/chat/stream` → returns `text/event-stream` (SSE)
@@ -238,12 +335,12 @@ The second brain should **learn from what the user tells it**. When a user says 
 
 ---
 
-## Phase 5: Activity Feed & Cross-Feature Linking
+## Phase 5: Activity Feed & Cross-Feature Linking — ❌ CHECKPOINT 6
 
-| Step | What |
-|------|------|
-| 5.1 | `ActivityLogService` — hook into HabitService (streak milestones), GoalService (completions), GymService (PRs), TransactionService (budget alerts), TodoService |
-| 5.2 | Note tagging UI — multi-select tag picker, optional feature linking, tag badges on cards |
+| Step | What | Status |
+|------|------|--------|
+| 5.1 | Hook `ActivityLogService` into HabitService, GoalService, GymService, TransactionService, TodoService | ❌ Checkpoint 6 |
+| 5.2 | Note tagging UI — tag picker, feature linking, tag badges | ❌ Checkpoint 6 |
 
 ### Step 5.1 — ActivityLogService
 - New service `ActivityLogService.java`
@@ -264,11 +361,11 @@ The second brain should **learn from what the user tells it**. When a user says 
 
 ---
 
-## Phase 6: Proactive AI Insights
+## Phase 6: Proactive AI Insights — ❌ CHECKPOINT 7
 
-| Step | What |
-|------|------|
-| 6.1 | `InsightGeneratorService` — `@Scheduled` daily 8 PM. Detect patterns (streak breaks, budget >80%, deadline approaching). LLM generates insight. Push via `NotificationDispatchService`. Max 2/day |
+| Step | What | Status |
+|------|------|--------|
+| 6.1 | `InsightGeneratorService` — `@Scheduled` daily 8 PM, pattern detection, LLM message, push via `NotificationDispatchService` | ❌ Checkpoint 7 |
 
 ### Step 6.1 — InsightGeneratorService
 - New service `InsightGeneratorService.java`
@@ -288,16 +385,18 @@ The second brain should **learn from what the user tells it**. When a user says 
 
 ---
 
-## Phase 7: RAGAS Evaluation Metrics
+## Phase 7: RAGAS Evaluation Metrics — ❌ CHECKPOINT 8
 
-This is the **quality measurement layer** — implements the 4 metrics from your RAGAS image using **LLM-as-judge** (no Python sidecar needed):
+This is the **quality measurement layer** — implements the 4 metrics using **LLM-as-judge** (no Python sidecar needed):
 
-| Metric | Target Score | How It Works | Needs Ground Truth? |
-|--------|-------------|--------------|---------------------|
-| **Faithfulness** | ≥ 0.84 | Decompose answer into claims → verify each against retrieved context → `supported/total` | No |
-| **Answer Relevancy** | ≥ 0.79 | Generate hypothetical questions from answer → cosine similarity with original question | No |
-| **Context Precision** | ≥ 0.88 | LLM judges each retrieved chunk's relevance → `relevant/total` (rank-weighted) | No |
-| **Context Recall** | ≥ 0.76 | Check expected answer sentences against context → `attributable/total` | Yes (benchmark only) |
+| Metric | Target Score | How It Works | Needs Ground Truth? | Status |
+|--------|-------------|--------------|---------------------|--------|
+| **Faithfulness** | ≥ 0.84 | Decompose answer into claims → verify each against retrieved context → `supported/total` | No | ❌ |
+| **Answer Relevancy** | ≥ 0.79 | Generate hypothetical questions from answer → cosine similarity with original question | No | ❌ |
+| **Context Precision** | ≥ 0.88 | LLM judges each retrieved chunk's relevance → `relevant/total` (rank-weighted) | No | ❌ |
+| **Context Recall** | ≥ 0.76 | Check expected answer sentences against context → `attributable/total` | Yes (benchmark only) | ❌ |
+
+> DB tables (`rag_evaluations`, `rag_test_cases`) exist from migration V23. Build services + endpoints + dashboard in Checkpoint 8.
 
 ### Step 7.1 — V20: RAG Evaluation Tables
 - New migration `V20__create_rag_evaluation_tables.sql`
@@ -368,71 +467,97 @@ This is the **quality measurement layer** — implements the 4 metrics from your
 
 ## Files Summary
 
-### Backend — Modify
-- `pom.xml` — add pgvector/hibernate-vector, WebClient dependencies
-- `application.yaml` — OpenAI embedding config, async executor config
-- `AiChatService.java` — add streaming method, integrate PromptAssemblyService
-- `AiChatController.java` — add `/chat/stream` SSE endpoint
-- `Note.java` — add tags, linkedFeature, linkedEntityId fields
-- `AiConfiguration.java` — add insightsEnabled, insightsCron, evaluationEnabled, evaluationSampleRate
-- `NoteService.java` — publish embedding events, handle tags
-- `GoalService.java` — publish embedding events, log activity
-- `HabitService.java` — log activity (streaks, completions)
-- `GymService.java` — log activity
-- `TransactionService.java` — log activity
+### Backend — Already Exists (no changes needed unless noted)
+- All DB migrations V16–V24 ✅
+- All entities: `UserProfile` (updated with V24 fields), `Embedding`, `ActivityLog`, `ConversationMemory`, `RagEvaluation`, `RagTestCase` ✅
+- All repositories for the above ✅
+- `EmbeddingService.java`, `OpenAiEmbeddingClient.java`, `ActivityLogService.java` ✅ (scaffolded)
+- `AiChatService.java` ✅ (updated: two modes `normal`/`chat_buddy`, profile context injection, `userUid` parameter)
+- `AiChatController.java` ✅ (updated: passes `userUid` to service)
+- `UserProfileService.java` ✅ (CRUD + `buildProfileContext` + `gatherEnrichmentContext` + `applyEnrichment` + `generatePendingQuestions`)
+- `UserProfileController.java` ✅ (`GET /api/profile`, `PUT /api/profile`, `GET /api/profile/pending-questions`)
+- `UpdateUserProfileRequest.java`, `UserProfileDetailResponse.java` ✅
+
+### Backend — Modify (Checkpoints 1, 3+)
+- `AppConfig.java` — add `WebClient` bean (Checkpoint 1)
+- `AiChatService.java` — add `streamChat()` method (Checkpoint 1), integrate `PromptAssemblyService` (Checkpoint 3)
+- `AiChatController.java` — add `POST /api/ai/chat/stream` SSE endpoint (Checkpoint 1)
+- `NoteService.java` — publish `NoteUpdatedEvent`, handle tags (Checkpoint 4)
+- `GoalService.java` — publish `GoalUpdatedEvent`, log activity (Checkpoints 4, 6)
+- `HabitService.java` — log activity (streaks, completions) (Checkpoint 6)
+- `GymService.java` — log activity (Checkpoint 6)
+- `TransactionService.java` — log activity (Checkpoint 6)
 
 ### Backend — Create New
-- `db/migration/V16__create_user_profile_table.sql`
-- `db/migration/V17__create_embeddings_table.sql`
-- `db/migration/V18__create_activity_log_table.sql`
-- `db/migration/V19__add_note_tags.sql`
-- `db/migration/V20__create_rag_evaluation_tables.sql`
-- `db/migration/V21__create_conversation_memories_table.sql`
-- `entity/UserProfile.java`, `entity/Embedding.java`, `entity/ActivityLog.java`, `entity/RagEvaluation.java`, `entity/RagTestCase.java`, `entity/ConversationMemory.java`
-- `repository/UserProfileRepository.java`, `repository/EmbeddingRepository.java`, `repository/ActivityLogRepository.java`, `repository/RagEvaluationRepository.java`, `repository/RagTestCaseRepository.java`, `repository/ConversationMemoryRepository.java`
-- `service/UserProfileService.java`, `service/EmbeddingService.java`, `service/ActivityLogService.java`
-- `service/OpenAiEmbeddingClient.java`, `service/StructuredContextService.java`, `service/PromptAssemblyService.java`
-- `service/InsightGeneratorService.java`, `service/RagEvaluationService.java`, `service/ConversationMemoryService.java`
-- `controller/UserProfileController.java`, `controller/RagEvaluationController.java`, `controller/ConversationMemoryController.java`
-- `event/NoteUpdatedEvent.java`, `event/GoalUpdatedEvent.java`, `event/UserProfileUpdatedEvent.java`, `event/RagResponseCompletedEvent.java`
-- `event/EmbeddingEventListener.java`, `event/RagEvaluationListener.java`, `event/ConversationMemoryListener.java`
-- DTOs for UserProfile, ActivityLog, RagEvaluation, streaming responses
+- `service/StructuredContextService.java` (Checkpoint 3)
+- `service/PromptAssemblyService.java` (Checkpoint 3)
+- `event/NoteUpdatedEvent.java`, `event/GoalUpdatedEvent.java`, `event/UserProfileUpdatedEvent.java` (Checkpoint 4)
+- `event/EmbeddingEventListener.java` (Checkpoint 4)
+- `service/ConversationMemoryService.java` (Checkpoint 5)
+- `controller/ConversationMemoryController.java` (Checkpoint 5)
+- `event/ConversationMemoryListener.java` (Checkpoint 5)
+- `event/RagResponseCompletedEvent.java` (Checkpoint 8)
+- `service/InsightGeneratorService.java` (Checkpoint 7)
+- `service/RagEvaluationService.java` (Checkpoint 8)
+- `controller/RagEvaluationController.java` (Checkpoint 8)
+- `event/RagEvaluationListener.java` (Checkpoint 8)
+- DTOs for streaming responses, RagEvaluation
 
 ### Frontend — Modify
-- `src/app/ai-chat/page.tsx` — SSE streaming consumer, updated message rendering
-- `src/services/ai-chat.service.ts` — add `sendMessageStream()`
-- `src/app/profile/page.tsx` — extended profile form (identity data)
-- `src/services/user.service.ts` — add profile CRUD endpoints
-- `src/types/index.ts` — UserProfile type, Note tags, ActivityLog type, RagEvaluation types, ConversationMemory type
-- Notes pages — tag selector in create/edit forms
-- Admin panel navigation — add RAG Evaluation link
+- `src/app/ai-chat/page.tsx` — SSE streaming consumer + mode toggle (Normal / Chat Buddy) (Checkpoints 1, 2)
+- `src/services/ai-chat.service.ts` — add `sendMessageStream()`, send `mode` field (Checkpoint 1)
+- `src/app/profile/page.tsx` — read-only "AI Profile" card showing what AI knows + completeness % (Checkpoint 2)
+- `src/services/user.service.ts` — add `getProfile()` / `updateProfile()` (Checkpoint 2)
+- `src/types/index.ts` — `UserProfile`, note tags, `ActivityLog`, `RagEvaluation`, `ConversationMemory` types
+- Notes pages — tag selector in create/edit forms (Checkpoint 6)
+- Admin panel navigation — add RAG Evaluation link (Checkpoint 8)
 
 ### Frontend — Create New
-- `src/app/admin/rag-evaluation/page.tsx` — RAGAS dashboard (4 metric stat cards with colored bars, line chart for trends, evaluation table, benchmark management)
-- `src/services/rag-evaluation.service.ts` — API calls for evaluation endpoints
+- `src/app/admin/rag-evaluation/page.tsx` — RAGAS dashboard (Checkpoint 8)
+- `src/services/rag-evaluation.service.ts` (Checkpoint 8)
 
 ---
 
 ## Verification Checklist
 
-1. **pgvector**: Run `SELECT * FROM pg_extension WHERE extname = 'vector';` — confirms extension installed
-2. **Embedding pipeline**: Create a note, verify a row appears in `embeddings` table with non-null vector. Check `content_hash` matches SHA-256 of the note text. Update the note — verify embedding row updates (not duplicates)
-3. **Vector search**: Create 5+ notes with varied topics. Query via `/api/ai/chat/stream` with a related topic. Verify the AI response references relevant note content
-4. **Structured context**: Ask the AI "what are my active goals?" — verify it returns actual goal data, not a generic response
-5. **Streaming**: Open browser DevTools Network tab. Send a chat message. Verify SSE events arrive incrementally (not one big response)
-6. **Activity feed**: Complete a habit, check `activity_log` table has a new row. Then ask AI "what did I do today?" — verify it mentions the habit
-7. **Note tagging**: Create a note tagged "journal". Ask AI a philosophical question — verify the journal note surfaces in vector results
-8. **Proactive insights**: Trigger the insight job manually (or wait for schedule). Verify push notification received with a relevant, personalized insight message
-9. **Profile context**: Set age/occupation in profile. Ask AI "tell me about myself" — verify it uses profile data
-10. **Fallback**: Disable streaming in frontend, verify non-streaming endpoint still works
-15. **Conversation memory — extraction**: Have a chat where you say "I just started learning piano" and "I sleep at 11pm usually". Check `conversation_memories` table — verify 2 active memories extracted
-16. **Conversation memory — dedup**: In a new chat say "I sleep at midnight now". Verify the old sleep memory is marked `active=false, superseded_by=new_id` and new one is active
-17. **Conversation memory — context**: Start a fresh chat and ask "what do you know about me?" — verify it mentions piano and sleep schedule from previous conversations
-18. **Conversation memory — user control**: Call `GET /api/memories` — verify list of active memories. Delete one via `DELETE /api/memories/{id}`, confirm it no longer appears in AI context
-11. **RAGAS — per-interaction**: Send a chat message, wait ~30s, query `rag_evaluations` table — verify Faithfulness, Answer Relevancy, Context Precision scores exist (0.0-1.0 range)
-12. **RAGAS — dashboard**: Open `/admin/rag-evaluation`, verify 4 metric cards display with colored bars, line chart shows trend data
-13. **RAGAS — benchmark**: Add 3 test cases via admin, trigger benchmark run, verify all 4 metrics (including Context Recall) return scores
-14. **RAGAS — sampling**: Set sample rate to 2, send 10 messages, verify ~5 evaluations created (not 10)
+### Checkpoint 1 — Streaming
+1. Network tab shows incremental SSE chunks (not one large response).
+2. UI text appears word-by-word in the chat bubble.
+3. `POST /api/ai/chat` (non-streaming fallback) still works.
+
+### Checkpoint 2 — Profile Context + Chat Buddy
+4. `GET /api/profile` → returns profile with `profileCompleteness`, `pendingQuestions`.
+5. `PUT /api/profile` with age=25, occupation="Software Engineer" → fields saved.
+6. Normal mode: ask AI "tell me about myself" → response mentions age and occupation from profile context.
+7. Chat Buddy mode (`mode: "chat_buddy"`): AI greets warmly, asks ONE natural getting-to-know-you question.
+8. After answering buddy questions → profile fields gradually populate (once Checkpoint 5 wires memory extraction).
+9. Profile with no data → AI still responds normally in both modes (graceful null handling).
+
+### Checkpoint 3 — Structured Snapshot
+7. Ask AI "what are my active goals?" → returns actual goal names and progress from DB, not generic advice.
+8. Ask AI "how am I doing this week?" → references habits, gym, finance from structured context.
+
+### Checkpoint 4 — Vector Search
+9. Create a note, check `embeddings` table has a new row with non-null vector. Verify `content_hash` matches SHA-256 of note text.
+10. Update the note — verify embedding row updates (not duplicated).
+11. Create 5+ notes on varied topics. Ask about one topic — verify AI response references the relevant note.
+
+### Checkpoint 5 — Conversation Memory
+12. Chat: say "I just started learning piano" and "I sleep at 11pm usually". Check `conversation_memories` table for 2 active rows.
+13. New chat: say "I sleep at midnight now". Verify old sleep memory is `active=false, superseded_by=new_id`.
+14. Fresh chat: ask "what do you know about me?" — response mentions piano and sleep schedule.
+15. Call `GET /api/memories` — verify active memory list. Delete one via `DELETE /api/memories/{id}`, confirm it no longer appears in AI context.
+
+### Checkpoint 6 — Activity Intelligence
+16. Complete a habit, check `activity_log` table for a new row. Ask AI "what did I do today?" — mentions the habit.
+
+### Checkpoint 7 — Proactive Insights
+17. Trigger insight job manually. Confirm a push notification is created with a relevant, personalized message.
+
+### Checkpoint 8 — RAGAS Evaluation
+18. Send a chat message, wait ~30s. Query `rag_evaluations` table — verify Faithfulness, Answer Relevancy, Context Precision scores exist (0.0-1.0).
+19. Open `/admin/rag-evaluation` — 4 metric cards, line chart trend, recent evaluations table visible.
+20. Add 3 benchmark test cases, trigger benchmark run, verify all 4 metrics (including Context Recall) return scores.
 
 ---
 
@@ -462,13 +587,15 @@ This is the **quality measurement layer** — implements the 4 metrics from your
 
 Key things to walk through when showing the project:
 
-1. **Hybrid RAG architecture** — "We use SQL for exact structured data and pgvector cosine similarity for fuzzy semantic search, then stitch both into a single context window. This is the same pattern production RAG systems use."
-2. **Event-driven embedding pipeline** — "When you save a note, a Spring async event fires, calls OpenAI's embedding API, and stores the vector. The content hash prevents redundant API calls on re-saves."
-3. **Conversation memory with supersession** — "The AI extracts facts from conversations, deduplicates them with vector similarity, and handles contradictions — if you say 'I sleep at midnight' after previously saying '11pm', the old memory gets superseded."
-4. **RAGAS evaluation without Python** — "We implemented the 4 RAGAS metrics natively in Java using LLM-as-judge prompts. The dashboard shows real-time pipeline quality — Faithfulness, Answer Relevancy, Context Precision, Context Recall."
-5. **Proactive push insights** — "A scheduled job analyzes your life data, detects patterns like streak breaks or approaching deadlines, generates a motivational message via LLM, and sends it as a push notification."
-6. **Full-stack SSE streaming** — "Token-by-token streaming from LLM → Spring SseEmitter → browser ReadableStream → real-time UI rendering."
-7. **Cross-feature data graph** — "The AI knows your goals, habits, gym progress, spending, and schedule simultaneously. Ask it 'how am I doing this week?' and it pulls from 6 different data sources."
+1. **Two AI modes** — "Normal mode is a context-aware assistant. Chat Buddy mode flips the dynamic — the AI interviews you to build your profile over time. It tracks what it knows, what it doesn't, and naturally weaves questions into conversation."
+2. **Dynamic profile building** — "The user profile isn't a form — it's synthesised from notes, goals, habits, and conversations. The AI extracts bio, philosophy, and interests from multiple data sources and tracks a completeness score."
+3. **Hybrid RAG architecture** — "SQL for exact structured data, pgvector cosine similarity for fuzzy semantic search, stitched into a single context window. Same pattern as production RAG systems."
+4. **Event-driven embedding pipeline** — "Save a note → Spring async event → OpenAI embedding API → pgvector store. Content hash prevents redundant API calls on re-saves."
+5. **Conversation memory with supersession** — "The AI extracts facts from conversations, deduplicates with vector similarity, and handles contradictions via supersession chains."
+6. **RAGAS evaluation without Python** — "4 RAGAS metrics natively in Java using LLM-as-judge prompts. Dashboard shows real-time pipeline quality."
+7. **Proactive push insights** — "Scheduled job detects patterns (streak breaks, deadlines) → LLM generates motivational message → push notification."
+8. **Full-stack SSE streaming** — "Token-by-token streaming: LLM → Spring SseEmitter → browser ReadableStream → real-time UI rendering."
+9. **Cross-feature data graph** — "The AI knows goals, habits, gym progress, spending, and schedule simultaneously. Ask 'how am I doing this week?' and it pulls from 6+ data sources."
 
 ## Further Considerations
 

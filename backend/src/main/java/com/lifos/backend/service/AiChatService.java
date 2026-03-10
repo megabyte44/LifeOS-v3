@@ -25,10 +25,11 @@ public class AiChatService {
 
     private final AiFoundationProperties aiFoundationProperties;
     private final AiConfigurationResolver aiConfigurationResolver;
+    private final UserProfileService userProfileService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
 
-    public AiChatResponse chat(AiChatRequest req) {
+    public AiChatResponse chat(AiChatRequest req, String userUid) {
         AiConfiguration config = aiConfigurationResolver.resolve();
 
         Map<String, Object> modelCfg = config.getModelConfig();
@@ -40,14 +41,11 @@ public class AiChatService {
         int maxTokens = toInt(modelCfg.getOrDefault("maxTokens", 4096));
         double topP = toDouble(modelCfg.getOrDefault("topP", 1.0));
 
-        log.info("AI chat request — provider={} model={}", provider, model);
+        String mode = req.getMode() != null ? req.getMode() : "normal";
+        log.info("AI chat request — provider={} model={} mode={}", provider, model, mode);
 
-        // Prepend system instruction based on personality
-        String personality = req.getPersonality() != null ? req.getPersonality() : config.getDefaultPersonality();
-        Map<String, Object> sysInstructions = config.getSystemInstructions();
-        String sysPrompt = personality.equals("professional")
-                ? (String) sysInstructions.getOrDefault("professionalAssistant", "")
-                : (String) sysInstructions.getOrDefault("casualBuddy", "");
+        // Build system prompt based on mode
+        String sysPrompt = buildSystemPrompt(req, config, userUid, mode);
 
         return switch (provider) {
             case "gemini" -> callGemini(req.getMessages(), sysPrompt, model,
@@ -57,6 +55,69 @@ public class AiChatService {
                 resolveApiKey(provider, apiKeysCfg),
                     temperature, maxTokens, topP, provider);
         };
+    }
+
+    // ── System Prompt Builder ──────────────────────────────────────────────────
+
+    private String buildSystemPrompt(AiChatRequest req, AiConfiguration config,
+                                     String userUid, String mode) {
+        // Base personality prompt
+        String personality = req.getPersonality() != null ? req.getPersonality() : config.getDefaultPersonality();
+        Map<String, Object> sysInstructions = config.getSystemInstructions();
+        String basePrompt = personality.equals("professional")
+                ? (String) sysInstructions.getOrDefault("professionalAssistant", "")
+                : (String) sysInstructions.getOrDefault("casualBuddy", "");
+
+        StringBuilder sb = new StringBuilder();
+
+        if ("chat_buddy".equals(mode)) {
+            sb.append(buildChatBuddyPrompt(userUid));
+        } else {
+            sb.append(basePrompt);
+        }
+
+        // Inject profile context for all modes (if available)
+        String profileCtx = userProfileService.buildProfileContext(userUid);
+        if (!profileCtx.isBlank()) {
+            sb.append("\n\n=== USER PROFILE ===\n").append(profileCtx);
+        }
+
+        return sb.toString();
+    }
+
+    private String buildChatBuddyPrompt(String userUid) {
+        List<String> pending = userProfileService.generatePendingQuestions(userUid);
+        String profileCtx = userProfileService.buildProfileContext(userUid);
+
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("""
+                You are the user's personal Chat Buddy in LifeOS — a warm, curious friend \
+                whose goal is to get to know them deeply. Your job is to have natural, \
+                engaging conversations that help build a rich understanding of who they are.
+
+                RULES:
+                - Ask ONE question at a time. Don't overwhelm with multiple questions.
+                - Be conversational, not interrogative. React to their answers naturally.
+                - Share brief observations or connections ("That's cool, so you're into...").
+                - If they seem done with a topic, move on gracefully.
+                - Extract facts naturally — don't say "I'm updating your profile".
+                - Mix getting-to-know-you with life check-ins ("How's your week going?").
+                - Keep it casual and warm. You're a friend, not a survey bot.
+                """);
+
+        if (!profileCtx.isBlank()) {
+            prompt.append("\n=== WHAT YOU ALREADY KNOW ===\n").append(profileCtx);
+            prompt.append("\nDon't re-ask things you already know. Build on them.\n");
+        }
+
+        if (!pending.isEmpty()) {
+            prompt.append("\n=== TOPICS TO EXPLORE (pick ONE naturally) ===\n");
+            for (String q : pending) {
+                prompt.append("- ").append(q).append("\n");
+            }
+        }
+
+        return prompt.toString();
     }
 
     // ── OpenAI / OpenRouter ────────────────────────────────────────────────────
