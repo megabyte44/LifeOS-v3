@@ -23,10 +23,10 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")                         // Apply to all backend endpoints
-                .allowedOrigins(
+                .allowedOriginPatterns(
                     "http://localhost:9002",                // Frontend dev server
-                    "http://localhost:3000" ,                // Alternative Next.js port
-                    "https://frontend-lifeos-v3-git-punith-punithmedaramitta-1350s-projects.vercel.app/"         // Production frontend
+                    "http://localhost:3000",                // Alternative Next.js port
+                    "https://*.vercel.app"                  // Vercel preview + production domains
                 )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")                       // Allow all headers (incl. Authorization)

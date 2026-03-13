@@ -9,7 +9,7 @@ export async function POST(req: Request) {
 
     let backendResponse: Response;
     try {
-      backendResponse = await fetch(`${BACKEND_URL}/api/ai/chat`, {
+      backendResponse = await fetch(`${BACKEND_URL}/ai/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
