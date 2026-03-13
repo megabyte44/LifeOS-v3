@@ -91,7 +91,12 @@ async function request<T>(
   // This avoids a jarring hard redirect on background refetches.
   if (response.status === 401 && typeof window !== 'undefined') {
     import('@/lib/firebase').then(({ auth }) =>
-      import('firebase/auth').then(({ signOut }) => signOut(auth).catch(() => {}))
+      import('firebase/auth').then(({ signOut }) => {
+        if (auth) {
+          return signOut(auth).catch(() => {});
+        }
+        return Promise.resolve();
+      })
     );
   }
 

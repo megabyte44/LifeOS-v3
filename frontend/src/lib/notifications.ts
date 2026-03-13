@@ -6,6 +6,8 @@ export async function sendNotification(
   endpoint: string,
   data: Record<string, unknown>
 ) {
+  if (!auth) return;
+
   const user = auth.currentUser;
   if (!user) return;
 

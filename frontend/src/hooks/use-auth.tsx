@@ -47,6 +47,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     // Failsafe: if Firebase never responds, stop showing the spinner after 8s
     const timeout = setTimeout(() => setLoading(false), 8000);
 
@@ -65,6 +70,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!auth || !googleProvider) {
+      throw new Error('Firebase configuration is missing.');
+    }
+
     // Mark as signing-in so AppLayout doesn't redirect to /login while the
     // popup is open (the window where loading=false && user=null is true).
     setIsSigningIn(true);
@@ -79,6 +88,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (!auth) {
+      router.push('/login');
+      return;
+    }
+
     // Clear all cached query data so the next user starts with a clean slate
     queryClient.clear();
     try {

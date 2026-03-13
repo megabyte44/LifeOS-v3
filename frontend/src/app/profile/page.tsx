@@ -14,7 +14,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
 import { reauthenticateWithCredential, EmailAuthProvider, updateEmail, updatePassword, linkWithCredential } from 'firebase/auth';
 import { userApiService } from '@/services/user.service';
 import type { AiProfileResponse } from '@/types';
