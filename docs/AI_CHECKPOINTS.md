@@ -36,7 +36,7 @@ What was built:
 - Frontend `sendMessage()` rebuilt: inserts AI placeholder immediately, appends tokens in real-time, mode toggle (Normal / Chat Buddy) visible in header and input bar.
 - `MarkdownRenderer.tsx` — full rewrite: line-by-line parser, proper `<ul>`/`<ol>` wrapping, numbered lists, non-greedy bold/italic, code block escaping.
 
-## ✅ Checkpoint 2: Profile Context — COMPLETE (Backend), PENDING (Frontend UI)
+## ✅ Checkpoint 2: Profile Context — COMPLETE
 
 Goal: add one deterministic context source — dynamic profile extracted from user data and AI conversations.
 
@@ -47,79 +47,60 @@ What was built:
 - `UserProfileController` — `GET/PUT /api/profile`, `GET /api/profile/pending-questions`.
 - Two AI modes: `normal` (personality + profile context injected) and `chat_buddy` (warm interviewer persona, one pending question at a time).
 - `AiChatRequest` — added `mode` field.
+- Profile completeness UI in settings page.
 
-Still needed:
-- Profile card UI in the profile/settings page showing completeness % and known fields.
-
-## Checkpoint 3: Structured Snapshot
+## ✅ Checkpoint 3: Structured Snapshot — COMPLETE
 
 Goal: expand deterministic context across product features.
 
-Scope:
-- Add `StructuredContextService`.
-- Inject habits, goals, gym, finance, schedule, and recent activity.
-- Still no vector retrieval.
+What was built:
+- `StructuredContextService` — `buildSnapshot()` covering habits (streak, last-7-day count), goals (active/completed), gym (recent workouts, protein), finance (monthly totals, budget), schedule (today's planner items), recent activity.
+- `PromptAssemblyService` — stitches profile + snapshot + memories + vector results into one context block injected via `[CONTEXT]` into the system prompt.
+- AI correctly answers "What are my active goals?" and "What did I do today?" from DB state.
 
-Definition of done:
-- AI answers exact questions from database state.
-- Output is grounded in current app data, not generic advice.
-
-Verification:
-- Ask: "What are my active goals?"
-- Ask: "What did I do today?"
-
-## Checkpoint 4: Vector Search
+## ✅ Checkpoint 4: Vector Search — COMPLETE
 
 Goal: add semantic retrieval after exact context is stable.
 
-Scope:
-- Enable `pgvector` extension (already enabled — V15_1 migration).
-- Embeddings table already exists (V17 migration, IVFFlat index).
-- Wire `EmbeddingService` + `OpenAiEmbeddingClient` (scaffolded, not yet wired to chat).
-- Embed notes, goals, and profile narrative fields.
-- Inject top matching semantic results into the prompt.
+What was built:
+- `EmbeddingTriggerEvent` + `EmbeddingEventListener` — `@Async @TransactionalEventListener(AFTER_COMMIT)` wired to NoteService and GoalService.
+- `EmbeddingService` — embeds content via OpenAI, stores in pgvector `vector(1536)`, skips when content-hash unchanged.
+- Bug fix: `EmbeddingRepository.findSimilar` changed param from `float[]` to `String` with `::vector` cast to match pgvector wire format.
+- `EmbeddingBackfillService` — admin-triggered async backfill for all existing notes and goals.
+- `POST /api/admin/backfill-embeddings` — admin-only backfill endpoint.
+- `PromptAssemblyService` — injects top-5 semantically similar notes/goals under `=== RELEVANT NOTES & GOALS ===`.
 
-Definition of done:
-- Related notes are retrieved for semantically similar prompts.
-- Re-embedding is skipped when content is unchanged.
-
-Verification:
-- Create notes on different topics.
-- Ask about one topic and verify relevant note retrieval.
-
-## Checkpoint 5: Conversation Memory
+## ✅ Checkpoint 5: Conversation Memory — COMPLETE
 
 Goal: let the system retain user-stated facts across chats.
 
-Scope:
-- Add conversation memory extraction.
-- Store active memories.
-- Add dedup and supersession logic.
-- Inject active memories into context.
+What was built:
+- `MemoryExtractionService` — `@Async` extraction after every Chat Buddy response; builds extraction prompt with existing memories context; calls gpt-4o-mini for JSON extraction; category-level replace (deactivate old → save new per category).
+- Memory categories: `personal | goals | health | work | relationships | preferences | context`.
+- `ConversationMemoryRepository` — added `findByUserUidAndActiveTrueOrderByCreatedAtAsc` and `deactivateByUserUidAndCategory` (@Modifying JPQL).
+- Profile enrichment: `MemoryExtractionService.enrichProfileFromChunks()` extracts age via regex from `personal` memories, occupation from first `work` memory, and calls `UserProfileService.updateProfile()`.
+- `GET /api/ai/memories` + `DELETE /api/ai/memories/{id}` — memory viewer endpoints in `AiChatController`.
+- Frontend memory viewer page at `/ai-chat/memories` — grouped by category with colored badges, per-item soft-delete, empty state.
+- Brain icon link from AI chat header → memories page.
 
-Definition of done:
-- Facts from previous chats reappear in later answers.
-- Updated facts supersede old ones.
-
-Verification:
-- Tell the AI a new life fact.
-- Start a fresh chat and ask what it remembers.
-
-## Checkpoint 6: Activity Intelligence
+## ✅ Checkpoint 6: Activity Intelligence — COMPLETE
 
 Goal: build cross-feature meaning, not just retrieval.
 
-Scope:
-- Add `activity_log`.
-- Publish major product actions into the activity timeline.
-- Make the AI reference recent behavior.
-
-Definition of done:
-- The AI can summarize recent user activity across features.
+What was built:
+- `ActivityLogService` + `activity_logs` table (V18 migration) — already existed.
+- Wired `ActivityLogService` into all major domain services:
+  - `HabitService` — logs habit created (`habits/created`), habit checked in for today (`habits/completed`).
+  - `GoalService` — logs goal created, completed (completedAt transition), archived, deleted.
+  - `GymService` — logs workout completed for date (`gym/workout_completed`), protein intake logged (`gym/protein_logged`).
+  - `NoteService` — logs note created.
+  - `TodoService` — logs todo completed (`todos/completed`); also fixed duplicate `delete()` call bug.
+  - `TransactionService` — logs every new transaction (`finance/logged`) with type, description, and amount.
+- `StructuredContextService.appendRecentActivity()` already reads the 10 most recent `ActivityLog` entries and injects them into the AI context under `=== RECENT ACTIVITY ===`.
+- AI now references recent behavior across habits, goals, gym, todos, notes, and finance.
 
 Verification:
-- Complete a habit or workout.
-- Ask the AI what happened today.
+- Complete a habit or log a workout → ask "What did I do today?" → AI references the activity.
 
 ## Checkpoint 7: Proactive Insights
 
@@ -162,11 +143,11 @@ Verification:
 |---|---|---|
 | 0 | Plain AI Chat | ✅ Complete |
 | 1 | Streaming | ✅ Complete |
-| 2 | Profile Context | ✅ Backend done · ⏳ Frontend UI pending |
-| 3 | Structured Snapshot | ⬜ Not started |
-| 4 | Vector Search | ⬜ Not started (infra ready) |
-| 5 | Conversation Memory | ⬜ Not started |
-| 6 | Activity Intelligence | ⬜ Not started |
+| 2 | Profile Context | ✅ Complete |
+| 3 | Structured Snapshot | ✅ Complete |
+| 4 | Vector Search | ✅ Complete |
+| 5 | Conversation Memory | ✅ Complete |
+| 6 | Activity Intelligence | ✅ Complete |
 | 7 | Proactive Insights | ⬜ Not started |
 | 8 | RAG Evaluation | ⬜ Not started |
 

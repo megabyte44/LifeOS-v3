@@ -4,6 +4,7 @@ export interface AiChatRequest {
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
   personality?: string;
   model?: string;
+  mode?: 'normal' | 'chat_buddy';
 }
 
 export interface AiChatResponse {

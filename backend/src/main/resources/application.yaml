@@ -57,6 +57,7 @@ ai:
   model: ${AI_MODEL:}
   openai-api-key: ${OPENAI_API_KEY:}
   openrouter-api-key: ${OPENROUTER_API_KEY:}
+  openrouter-embedding-api-key: ${OPENROUTER_EMBEDDING_API_KEY:${OPENROUTER_API_KEY:}}
   gemini-api-key: ${GEMINI_API_KEY:${GOOGLE_API_KEY:}}
   embedding:
     dimensions: 1536

@@ -8,7 +8,9 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -81,20 +83,20 @@ public class Goal {
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sort_order ASC")
     @Builder.Default
-    private List<ProgressTracker> progressTrackers = new ArrayList<>();
+    private Set<ProgressTracker> progressTrackers = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("level ASC, sort_order ASC")
     @Builder.Default
-    private List<SubGoal> subGoals = new ArrayList<>();
+    private Set<SubGoal> subGoals = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sort_order ASC")
     @Builder.Default
-    private List<GoalNote> notes = new ArrayList<>();
+    private Set<GoalNote> notes = new LinkedHashSet<>();
 
     @OneToMany(mappedBy = "goal", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sort_order ASC")
     @Builder.Default
-    private List<GoalResource> resources = new ArrayList<>();
+    private Set<GoalResource> resources = new LinkedHashSet<>();
 }

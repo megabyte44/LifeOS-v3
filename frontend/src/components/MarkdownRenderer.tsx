@@ -104,7 +104,11 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
 
       // ── Blank line ────────────────────────────────────────────────────────
       if (line.trim() === '') {
-        closeList();
+        // Preserve list continuity across markdown spacing lines.
+        // Closing here would restart <ol> numbering from 1 on the next item.
+        if (inUl || inOl) {
+          continue;
+        }
         output.push('<div class="h-2"></div>');
         continue;
       }

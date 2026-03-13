@@ -3,11 +3,13 @@ package com.lifos.backend.service;
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.Note;
 import com.lifos.backend.entity.User;
+import com.lifos.backend.event.EmbeddingTriggerEvent;
 import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.NoteRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,8 @@ public class NoteService {
 
     private final NoteRepository noteRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ActivityLogService activityLogService;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)
@@ -53,7 +57,11 @@ public class NoteService {
                 .content(req.getContent())
                 .type(req.getType())
                 .build();
-        return toResponse(noteRepository.save(n));
+        Note saved = noteRepository.save(n);
+        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+                uid, "note", saved.getId(), buildEmbedText(saved)));
+        activityLogService.log(uid, "notes", "created", saved.getId(), "Created note: " + saved.getTitle());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -64,7 +72,10 @@ public class NoteService {
         if (req.getTitle()   != null) n.setTitle(req.getTitle());
         if (req.getContent() != null) n.setContent(req.getContent());
         if (req.getType()    != null) n.setType(req.getType());
-        return toResponse(noteRepository.save(n));
+        Note saved = noteRepository.save(n);
+        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+                uid, "note", saved.getId(), buildEmbedText(saved)));
+        return toResponse(saved);
     }
 
     @Transactional
@@ -72,6 +83,17 @@ public class NoteService {
         Note n = noteRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Note", "id", id));
         log.info("Deleting note [{}] for user [{}]", id, uid);
+        eventPublisher.publishEvent(new EmbeddingTriggerEvent(uid, "note", n.getId(), null));
         noteRepository.delete(n);
+    }
+
+    private String buildEmbedText(Note n) {
+        String contentText = "";
+        if (n.getContent() != null) {
+            contentText = n.getContent().isTextual()
+                    ? n.getContent().asText()
+                    : n.getContent().toString();
+        }
+        return n.getTitle() + "\n" + contentText;
     }
 }

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -67,7 +68,9 @@ public class HabitService {
                 .sprintStartDate(req.getSprintStartDate())
                 .context(req.getContext())
                 .build();
-        return toResponse(habitRepository.save(h));
+        Habit saved = habitRepository.save(h);
+        activityLogService.log(uid, "habits", "created", saved.getId(), "Created habit: " + saved.getName());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -75,6 +78,8 @@ public class HabitService {
         log.debug("Updating habit [{}] for user [{}]", id, uid);
         Habit h = habitRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
+        String todayStr = java.time.LocalDate.now().toString();
+        boolean wasDoneToday = isCompletedOn(h.getCompletions(), todayStr);
         if (req.getName()            != null) h.setName(req.getName());
         if (req.getIcon()            != null) h.setIcon(req.getIcon());
         if (req.getTarget()          != null) h.setTarget(req.getTarget());
@@ -84,7 +89,11 @@ public class HabitService {
         if (req.getSprintEndDate()   != null) h.setSprintEndDate(req.getSprintEndDate());
         if (req.getSprintStartDate() != null) h.setSprintStartDate(req.getSprintStartDate());
         if (req.getContext()         != null) h.setContext(req.getContext());
-        return toResponse(habitRepository.save(h));
+        Habit saved = habitRepository.save(h);
+        if (!wasDoneToday && isCompletedOn(saved.getCompletions(), todayStr)) {
+            activityLogService.log(uid, "habits", "completed", saved.getId(), "Checked in: " + saved.getName());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -93,5 +102,13 @@ public class HabitService {
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
         log.info("Deleting habit [{}] for user [{}]", id, uid);
         habitRepository.delete(h);
+    }
+
+    private boolean isCompletedOn(Map<String, Object> completions, String date) {
+        if (completions == null) return false;
+        Object val = completions.get(date);
+        if (val == null) return false;
+        if (val instanceof Boolean b) return b;
+        return !"false".equalsIgnoreCase(val.toString()) && !val.toString().isBlank();
     }
 }

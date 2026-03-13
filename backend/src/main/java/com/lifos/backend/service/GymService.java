@@ -25,6 +25,7 @@ public class GymService {
     private final GymCompletionRepository gymCompletionRepo;
     private final CustomFoodRepository customFoodRepo;
     private final ProteinTargetRepository proteinTargetRepo;
+    private final ActivityLogService activityLogService;
 
     // ── Workout Split ─────────────────────────────────────────────────────────
 
@@ -81,7 +82,10 @@ public class GymService {
                 .amount(req.getAmount())
                 .timestamp(req.getTimestamp() != null ? req.getTimestamp() : java.time.Instant.now())
                 .build();
-        return toProteinDto(proteinIntakeRepo.save(intake));
+        ProteinIntake saved = proteinIntakeRepo.save(intake);
+        activityLogService.log(uid, "gym", "protein_logged", saved.getId(),
+                "Logged " + req.getAmount() + "g protein");
+        return toProteinDto(saved);
     }
 
     @Transactional
@@ -135,6 +139,8 @@ public class GymService {
         Map<String, Object> completions = new HashMap<>(row.getCompletions());
         if (Boolean.TRUE.equals(req.getCompleted())) {
             completions.put(req.getDate(), true);
+            activityLogService.log(uid, "gym", "workout_completed", null,
+                    "Completed gym workout for " + req.getDate());
         } else {
             completions.remove(req.getDate());
         }

@@ -26,6 +26,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)
@@ -60,7 +61,10 @@ public class TransactionService {
                 .amount(req.getAmount())
                 .type(req.getType())
                 .build();
-        return toResponse(transactionRepository.save(t));
+        Transaction saved = transactionRepository.save(t);
+        activityLogService.log(uid, "finance", "logged", saved.getId(),
+                req.getType() + ": " + req.getDescription() + " (" + req.getAmount() + ")");
+        return toResponse(saved);
     }
 
     @Transactional

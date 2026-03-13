@@ -37,6 +37,7 @@ public class TodoService {
 
     private final TodoRepository todoRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     // ── Helper: Convert Entity → Response DTO ──
     private TodoResponse toResponse(TodoItem todo) {
@@ -102,6 +103,7 @@ public class TodoService {
         log.debug("Updating todo [{}] for user [{}]", todoId, userUid);
         TodoItem todo = todoRepository.findByIdAndUserUid(todoId, userUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Todo", "id", todoId));
+        boolean wasDone = Boolean.TRUE.equals(todo.getCompleted());
 
         // Partial update: only change fields the client sent
         if (request.getText() != null)      todo.setText(request.getText());
@@ -110,6 +112,9 @@ public class TodoService {
         if (request.getPostponed() != null) todo.setPostponed(request.getPostponed());
 
         TodoItem saved = todoRepository.save(todo);
+        if (!wasDone && Boolean.TRUE.equals(saved.getCompleted())) {
+            activityLogService.log(userUid, "todos", "completed", saved.getId(), "Completed todo: " + saved.getText());
+        }
         return toResponse(saved);
     }
 
@@ -122,7 +127,6 @@ public class TodoService {
         TodoItem todo = todoRepository.findByIdAndUserUid(todoId, userUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Todo", "id", todoId));
         log.info("Deleting todo [{}] for user [{}]", todoId, userUid);
-        todoRepository.delete(todo);
         todoRepository.delete(todo);
     }
 }

@@ -387,3 +387,38 @@ export type GoalProgressSummary = {
   lastActivityDate?: string;
 };
 
+// ===================================
+// AI PROFILE TYPES
+// ===================================
+
+export type AiProfileResponse = {
+  uid: string;
+  age: number | null;
+  bio: string | null;
+  philosophy: string | null;
+  interests: string[] | null;
+  occupation: string | null;
+  timezone: string | null;
+  lifeMotto: string | null;
+  lifeSummary: string | null;
+  sleepTargetHours: number | null;
+  dailyCalorieTarget: number | null;
+  proteinTargetOverride: number | null;
+  profileCompleteness: number;
+  pendingQuestions: string[] | null;
+  enrichmentSources: Record<string, number> | null;
+  lastEnrichedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConversationMemoryItem = {
+  id: string;
+  memoryText: string;
+  category: string | null;
+  confidence: number | null;
+  active: boolean;
+  sourceConversationDate: string;
+  createdAt: string;
+};
+

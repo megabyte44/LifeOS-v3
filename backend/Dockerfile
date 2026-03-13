@@ -26,6 +26,6 @@ COPY --from=builder /build/target/backend-0.0.1-SNAPSHOT.jar app.jar
 # Switch to non-root
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

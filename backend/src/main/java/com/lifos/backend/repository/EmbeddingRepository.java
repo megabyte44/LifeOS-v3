@@ -17,9 +17,9 @@ public interface EmbeddingRepository extends JpaRepository<Embedding, UUID> {
 
     @Query(value = "SELECT * FROM embeddings e " +
                    "WHERE e.user_uid = :userUid " +
-                   "ORDER BY e.embedding <=> cast(:queryVector as vector) " +
+                   "ORDER BY e.embedding <=> CAST(:queryVector AS vector) " +
                    "LIMIT :limit", nativeQuery = true)
-    List<Embedding> findSimilar(@Param("userUid") String userUid, 
-                                @Param("queryVector") float[] queryVector, 
+    List<Embedding> findSimilar(@Param("userUid") String userUid,
+                                @Param("queryVector") String queryVector,
                                 @Param("limit") int limit);
 }

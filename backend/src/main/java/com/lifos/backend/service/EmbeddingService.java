@@ -69,7 +69,17 @@ public class EmbeddingService {
 
     public List<Embedding> searchSimilar(String userUid, String queryText, int limit) {
         float[] queryVector = openAiEmbeddingClient.getEmbedding(queryText);
-        return embeddingRepository.findSimilar(userUid, queryVector, limit);
+        return embeddingRepository.findSimilar(userUid, toVectorString(queryVector), limit);
+    }
+
+    /** Converts float[] to pgvector literal format: [0.1,0.2,...] */
+    private String toVectorString(float[] v) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < v.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(v[i]);
+        }
+        return sb.append(']').toString();
     }
 
     private String computeHash(String text) {

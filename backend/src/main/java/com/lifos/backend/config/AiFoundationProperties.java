@@ -21,6 +21,8 @@ public class AiFoundationProperties {
     private String openaiApiKey = "";
     /** Set via OPENROUTER_API_KEY */
     private String openrouterApiKey = "";
+    /** Optional dedicated embedding key via OPENROUTER_EMBEDDING_API_KEY */
+    private String openrouterEmbeddingApiKey = "";
     /** Set via GEMINI_API_KEY or GOOGLE_API_KEY */
     private String geminiApiKey = "";
 
@@ -33,6 +35,8 @@ public class AiFoundationProperties {
     @Getter
     @Setter
     public static class Embedding {
+        /** Embedding model name (defaults to OpenAI small embedding). */
+        private String model = "text-embedding-3-small";
         private int dimensions = 1536;
         private int maxInputChars = 24000;
     }

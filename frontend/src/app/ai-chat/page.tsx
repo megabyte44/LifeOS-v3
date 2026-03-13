@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,8 @@ import {
   Menu,
   Sparkles,
   MessageCircle,
-  Settings
+  Settings,
+  Brain
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -354,14 +356,16 @@ function AiChatContent() {
         ? (session?.messages || []).slice(-aiSettings.maxContextLength)
         : [];
 
+      const normalizedMessages = [
+        { role: 'system', content: systemInstructions },
+        ...contextMessages.map((m) => ({ role: m.role, content: m.content })),
+        { role: userMessage.role, content: userMessage.content }
+      ];
+
       const token = await user.getIdToken();
 
       const requestBody = {
-        messages: [
-          { role: 'system', content: systemInstructions },
-          ...contextMessages,
-          userMessage
-        ],
+        messages: normalizedMessages,
         ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {}),
         mode: chatMode
       };
@@ -402,7 +406,20 @@ function AiChatContent() {
           if (trimmed.startsWith('data:')) {
             // Spring SseEmitter writes "data:TOKEN" (no separator space).
             // The leading space in slice(5) IS part of the token content — never strip it.
-            const data = trimmed.slice(5);
+            const rawData = trimmed.slice(5);
+
+            // Some providers/proxies send chunks as JSON strings (e.g. "\"hello\"").
+            // Decode once when possible so UI doesn't render quote artifacts.
+            let data = rawData;
+            try {
+              const parsed = JSON.parse(rawData);
+              if (typeof parsed === 'string') {
+                data = parsed;
+              }
+            } catch {
+              // Non-JSON chunk, use as-is.
+            }
+
             if (data === '[DONE]') { isDone = true; break; }
             if (data) {
               // Decode escaped newlines sent from backend
@@ -782,6 +799,16 @@ function AiChatContent() {
                   Ephemeral
                 </Badge>
               )}
+              <Link href="/ai-chat/memories">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  title="AI Memories"
+                >
+                  <Brain className="h-4 w-4" />
+                </Button>
+              </Link>
               <Button
                 onClick={() => window.open('/settings?tab=ai', '_blank')}
                 variant="ghost"

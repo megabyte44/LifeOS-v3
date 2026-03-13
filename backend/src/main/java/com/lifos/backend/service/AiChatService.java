@@ -32,6 +32,8 @@ public class AiChatService {
     private final AiFoundationProperties aiFoundationProperties;
     private final AiConfigurationResolver aiConfigurationResolver;
     private final UserProfileService userProfileService;
+    private final PromptAssemblyService promptAssemblyService;
+    private final MemoryExtractionService memoryExtractionService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
     private final WebClient webClient;
@@ -54,7 +56,7 @@ public class AiChatService {
         // Build system prompt based on mode
         String sysPrompt = buildSystemPrompt(req, config, userUid, mode);
 
-        return switch (provider) {
+        AiChatResponse response = switch (provider) {
             case "gemini" -> callGemini(req.getMessages(), sysPrompt, model,
                     aiConfigurationResolver.resolveProviderApiKey("gemini", apiKeysCfg),
                     temperature, maxTokens, topP);
@@ -62,6 +64,20 @@ public class AiChatService {
                 resolveApiKey(provider, apiKeysCfg),
                     temperature, maxTokens, topP, provider);
         };
+
+        // Async memory extraction — only in chat_buddy mode, never blocks the response
+        if ("chat_buddy".equals(mode) && response != null) {
+            String lastUserMsg = req.getMessages() == null ? "" : req.getMessages().stream()
+                    .filter(m -> "user".equals(m.getRole()))
+                    .reduce((a, b) -> b)
+                    .map(AiChatRequest.AiMessage::getContent)
+                    .orElse("");
+            if (!lastUserMsg.isBlank()) {
+                memoryExtractionService.extractAndStore(userUid, lastUserMsg, response.getResult());
+            }
+        }
+
+        return response;
     }
 
     // ── System Prompt Builder ──────────────────────────────────────────────────
@@ -75,21 +91,22 @@ public class AiChatService {
                 ? (String) sysInstructions.getOrDefault("professionalAssistant", "")
                 : (String) sysInstructions.getOrDefault("casualBuddy", "");
 
-        StringBuilder sb = new StringBuilder();
-
+        String base;
         if ("chat_buddy".equals(mode)) {
-            sb.append(buildChatBuddyPrompt(userUid));
+            base = buildChatBuddyPrompt(userUid);
         } else {
-            sb.append(basePrompt);
+            base = basePrompt;
         }
 
-        // Inject profile context for all modes (if available)
-        String profileCtx = userProfileService.buildProfileContext(userUid);
-        if (!profileCtx.isBlank()) {
-            sb.append("\n\n=== USER PROFILE ===\n").append(profileCtx);
-        }
+        // Extract the user's latest message to drive vector similarity search
+        String userQuery = req.getMessages() == null ? "" : req.getMessages().stream()
+                .filter(m -> "user".equals(m.getRole()))
+                .reduce((a, b) -> b)
+                .map(AiChatRequest.AiMessage::getContent)
+                .orElse("");
 
-        return sb.toString();
+        // Use PromptAssemblyService to inject structured context (profile, habits, goals, etc.)
+        return promptAssemblyService.buildFullSystemPrompt(base, userUid, mode, userQuery);
     }
 
     private String buildChatBuddyPrompt(String userUid) {
@@ -269,6 +286,17 @@ public class AiChatService {
 
         String sysPrompt = buildSystemPrompt(req, config, userUid, mode);
 
+        // For chat_buddy: capture the last user message + accumulate the full response for extraction
+        final boolean extractMemory = "chat_buddy".equals(mode);
+        final String lastUserMsg = extractMemory && req.getMessages() != null
+                ? req.getMessages().stream()
+                        .filter(m -> "user".equals(m.getRole()))
+                        .reduce((a, b) -> b)
+                        .map(AiChatRequest.AiMessage::getContent)
+                        .orElse("")
+                : "";
+        final StringBuilder fullResponse = extractMemory ? new StringBuilder() : null;
+
         Flux<String> tokenFlux = switch (provider) {
             case "gemini" -> streamGemini(req.getMessages(), sysPrompt, model,
                     aiConfigurationResolver.resolveProviderApiKey("gemini", apiKeysCfg),
@@ -281,6 +309,7 @@ public class AiChatService {
         tokenFlux.subscribe(
             token -> {
                 try {
+                    if (fullResponse != null) fullResponse.append(token);
                     // Encode newlines so SSE framing doesn't eat them
                     emitter.send(SseEmitter.event().data(token.replace("\n", "\\n")));
                 } catch (IOException e) {
@@ -300,6 +329,11 @@ public class AiChatService {
                     emitter.complete();
                 } catch (IOException e) {
                     emitter.completeWithError(e);
+                }
+                // Trigger async memory extraction after stream completes
+                if (extractMemory && fullResponse != null && !lastUserMsg.isBlank()) {
+                    memoryExtractionService.extractAndStore(
+                            userUid, lastUserMsg, fullResponse.toString());
                 }
             }
         );

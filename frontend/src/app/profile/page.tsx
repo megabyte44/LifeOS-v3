@@ -8,13 +8,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Save, Loader2, Edit, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Save, Loader2, Edit, ShieldCheck, Brain, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { reauthenticateWithCredential, EmailAuthProvider, updateEmail, updatePassword, linkWithCredential } from 'firebase/auth';
+import { userApiService } from '@/services/user.service';
+import type { AiProfileResponse } from '@/types';
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -39,11 +42,24 @@ export default function ProfilePage() {
   const [linkPassword, setLinkPassword] = useState('');
   const [isLinking, setIsLinking] = useState(false);
 
+  // AI Profile state
+  const [aiProfile, setAiProfile] = useState<AiProfileResponse | null>(null);
+  const [aiProfileLoading, setAiProfileLoading] = useState(true);
+
 
   useEffect(() => {
     if (!user) return;
     setUsername(user.displayName || '');
     setPhotoURL(user.photoURL || null);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setAiProfileLoading(true);
+    userApiService.getAiProfile()
+      .then(setAiProfile)
+      .catch(() => setAiProfile(null))
+      .finally(() => setAiProfileLoading(false));
   }, [user]);
 
   const handleSaveUsername = async () => {
@@ -244,6 +260,89 @@ export default function ProfilePage() {
                 </div>
             </CardContent>
             <CardFooter><Button onClick={handleSaveUsername} disabled={isLoading}><Save className="mr-2 h-4 w-4" /> Save Username</Button></CardFooter>
+        </Card>
+
+        {/* AI Profile Card */}
+        <Card className="border border-purple-200 dark:border-purple-800/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              AI Profile
+            </CardTitle>
+            <CardDescription>What the AI knows about you — built from conversations, notes, and habits.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiProfileLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ) : aiProfile ? (
+              <>
+                {/* Completeness bar */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-medium">Profile Completeness</span>
+                    <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">{aiProfile.profileCompleteness}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500"
+                      style={{ width: `${aiProfile.profileCompleteness}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Known fields */}
+                <div className="grid gap-3 text-sm">
+                  {aiProfile.occupation && (
+                    <div><span className="text-muted-foreground">Occupation:</span> <span className="font-medium">{aiProfile.occupation}</span></div>
+                  )}
+                  {aiProfile.age && (
+                    <div><span className="text-muted-foreground">Age:</span> <span className="font-medium">{aiProfile.age}</span></div>
+                  )}
+                  {aiProfile.bio && (
+                    <div><span className="text-muted-foreground">Bio:</span> <span className="font-medium">{aiProfile.bio}</span></div>
+                  )}
+                  {aiProfile.philosophy && (
+                    <div><span className="text-muted-foreground">Philosophy:</span> <span className="font-medium">{aiProfile.philosophy}</span></div>
+                  )}
+                  {aiProfile.lifeMotto && (
+                    <div><span className="text-muted-foreground">Life motto:</span> <span className="font-medium">{aiProfile.lifeMotto}</span></div>
+                  )}
+                  {aiProfile.lifeSummary && (
+                    <div><span className="text-muted-foreground">Summary:</span> <span className="font-medium">{aiProfile.lifeSummary}</span></div>
+                  )}
+                </div>
+
+                {/* Interests */}
+                {aiProfile.interests && aiProfile.interests.length > 0 && (
+                  <div>
+                    <span className="text-sm text-muted-foreground">Interests:</span>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {aiProfile.interests.map((interest) => (
+                        <Badge key={interest} variant="secondary" className="text-xs">
+                          {interest}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state */}
+                {aiProfile.profileCompleteness === 0 && (
+                  <div className="text-center py-4 text-muted-foreground">
+                    <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">No profile data yet.</p>
+                    <p className="text-xs mt-1">Chat with the AI in <strong>Chat Buddy</strong> mode to start building your profile!</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Could not load AI profile.</p>
+            )}
+          </CardContent>
         </Card>
 
         {user.isAnonymous && (
