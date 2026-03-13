@@ -19,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Firebase Authentication Filter — runs on every HTTP request.
@@ -44,6 +45,7 @@ import java.util.List;
 public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
     private final UserService userService;
+    private static final AtomicBoolean firebaseMissingWarnLogged = new AtomicBoolean(false);
 
     @Override
     protected void doFilterInternal(
@@ -65,7 +67,9 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
         // If Firebase is not initialized (missing service account), skip auth
         if (FirebaseApp.getApps().isEmpty()) {
-            log.warn("Firebase not initialized — skipping token verification");
+            if (firebaseMissingWarnLogged.compareAndSet(false, true)) {
+                log.warn("Firebase not initialized — skipping token verification");
+            }
             filterChain.doFilter(request, response);
             return;
         }
