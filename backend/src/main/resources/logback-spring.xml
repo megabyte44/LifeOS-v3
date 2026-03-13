@@ -12,7 +12,8 @@
     <!-- ════════════════════════════════════════════
          Log File Path
          ════════════════════════════════════════════ -->
-    <property name="LOG_FILE" value="logs/lifeos.log"/>
+    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+    <property name="LOG_FILE" value="${LOG_DIR}/lifeos.log"/>
 
     <!-- ════════════════════════════════════════════
          CONSOLE APPENDER  (colored, human-readable)
@@ -44,7 +45,7 @@
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/lifeos.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>${LOG_DIR}/lifeos.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
         </rollingPolicy>
         <encoder>
