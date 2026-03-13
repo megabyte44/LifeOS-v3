@@ -43,7 +43,7 @@
     "date-fns": "^3.6.0",
     "firebase": "^12.9.0",
     "lucide-react": "^0.475.0",
-    "next": "15.3.3",
+    "next": "^15.5.4",
     "openai": "^6.0.1",
     "patch-package": "^8.0.0",
     "react": "^18.3.1",
