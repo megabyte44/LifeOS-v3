@@ -12,7 +12,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/push")
+@RequestMapping("/push")
 @RequiredArgsConstructor
 public class PushController {
 

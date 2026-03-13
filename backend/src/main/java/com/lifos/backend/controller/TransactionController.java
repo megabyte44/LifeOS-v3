@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/transactions")
+@RequestMapping("/transactions")
 @RequiredArgsConstructor
 public class TransactionController {
 

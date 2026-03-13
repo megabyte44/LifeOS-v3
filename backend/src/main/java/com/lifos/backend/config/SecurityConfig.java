@@ -22,8 +22,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *     → Spring's auth filter then sees an already-authenticated context.
  *
  * - authorizeHttpRequests:
- *     /api/** → requires authentication (401 if no valid Bearer token)
- *     everything else → open (health checks, static assets, etc.)
+ *     all non-health endpoints → require authentication (401 if no valid Bearer token)
+ *     /health and CORS preflight OPTIONS requests → open
  */
 @Configuration
 @EnableWebSecurity
@@ -53,7 +53,7 @@ public class SecurityConfig {
             // Add our Firebase filter before Spring's default auth filter
             .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
 
-            // All /api/** endpoints require a valid Firebase Bearer token
+            // All non-health endpoints require a valid Firebase Bearer token
             .authorizeHttpRequests(auth -> auth
                 // Async/error dispatches re-use the committed response — no re-auth needed
                 .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
@@ -61,8 +61,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Public health endpoint — used by the frontend connection logger, no auth needed
                 .requestMatchers("/health").permitAll()
-                .requestMatchers("/api/**").authenticated()
-                .anyRequest().permitAll()
+                .anyRequest().authenticated()
             );
 
         return http.build();

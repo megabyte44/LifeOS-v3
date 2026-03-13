@@ -19,7 +19,7 @@ import java.util.UUID;
  * SecurityContext. SecurityUtils.getCurrentUserUid() extracts the uid.
  */
 @RestController
-@RequestMapping("/api/todos")
+@RequestMapping("/todos")
 @RequiredArgsConstructor
 public class TodoController {
 
