@@ -27,6 +27,7 @@ public class WebConfig implements WebMvcConfigurer {
                     "http://localhost:9002",                // Frontend dev server
                     "http://localhost:3000",                // Alternative Next.js port
                     "https://*.vercel.app"                  // Vercel preview + production domains
+                    "https://lifeos.page"                // Render preview + production domains
                 )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")                       // Allow all headers (incl. Authorization)
