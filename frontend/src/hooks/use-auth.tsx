@@ -12,32 +12,18 @@ import {
   signInWithPopup,
   signOut as firebaseSignOut,
   User as FirebaseUser,
-  GoogleAuthProvider,
-  getAuth,
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-
-// Initialize Firebase Auth
-import { initializeApp, getApps, getApp } from "firebase/app";
-
-const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+import { useQueryClient } from '@tanstack/react-query';
+// Single Firebase instance shared across the app — no duplicate init
+import { auth, googleProvider } from '@/lib/firebase';
 
 
 export interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
+  /** True while the Google sign-in popup is in-flight (before onAuthStateChanged fires). */
+  isSigningIn: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -45,6 +31,7 @@ export interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isSigningIn: false,
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -55,9 +42,16 @@ export type { FirebaseUser as User };
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     // Failsafe: if Firebase never responds, stop showing the spinner after 8s
     const timeout = setTimeout(() => setLoading(false), 8000);
 
@@ -65,6 +59,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(timeout);
       setUser(authUser);
       setLoading(false);
+      // Clear the sign-in flag whenever auth state settles
+      setIsSigningIn(false);
     });
 
     return () => {
@@ -74,19 +70,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
-    // Do NOT manipulate loading here — onAuthStateChanged owns the loading state.
-    // Setting loading=true then false would race with onAuthStateChanged and
-    // briefly expose loading=false + user=null, causing AppLayout to redirect.
+    if (!auth || !googleProvider) {
+      throw new Error('Firebase configuration is missing.');
+    }
+
+    // Mark as signing-in so AppLayout doesn't redirect to /login while the
+    // popup is open (the window where loading=false && user=null is true).
+    setIsSigningIn(true);
     try {
       await signInWithPopup(auth, googleProvider);
+      // onAuthStateChanged will fire and clear isSigningIn
     } catch (error) {
       console.error('Error signing in with Google', error);
+      setIsSigningIn(false);
       throw error;
     }
   };
 
   const signOut = async () => {
-    // onAuthStateChanged will fire with null and set loading=false automatically.
+    if (!auth) {
+      router.push('/login');
+      return;
+    }
+
+    // Clear all cached query data so the next user starts with a clean slate
+    queryClient.clear();
     try {
       await firebaseSignOut(auth);
       router.push('/login');
@@ -96,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, isSigningIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

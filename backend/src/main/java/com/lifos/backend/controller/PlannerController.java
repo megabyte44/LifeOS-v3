@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/planner")
+@RequestMapping("/planner")
 @RequiredArgsConstructor
 public class PlannerController {
 

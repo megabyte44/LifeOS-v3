@@ -21,11 +21,14 @@ WORKDIR /app
 # Create a non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
+# Ensure file logging path exists and is writable by the runtime user
+RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
+
 COPY --from=builder /build/target/backend-0.0.1-SNAPSHOT.jar app.jar
 
 # Switch to non-root
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

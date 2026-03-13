@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/gym")
+@RequestMapping("/gym")
 @RequiredArgsConstructor
 public class GymController {
 

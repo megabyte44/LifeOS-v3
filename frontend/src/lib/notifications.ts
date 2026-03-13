@@ -6,6 +6,8 @@ export async function sendNotification(
   endpoint: string,
   data: Record<string, unknown>
 ) {
+  if (!auth) return;
+
   const user = auth.currentUser;
   if (!user) return;
 
@@ -31,7 +33,7 @@ export async function sendNotification(
 
 // When marking a habit as complete (in habits/page.tsx)
 export async function notifyHabitReminder(habitName: string, habitId: string) {
-  return sendNotification('/api/notifications/habit-reminder', {
+  return sendNotification('/notifications/habit-reminder', {
     habitName,
     habitId,
   });
@@ -39,7 +41,7 @@ export async function notifyHabitReminder(habitName: string, habitId: string) {
 
 // When budget threshold is crossed (in expenses/page.tsx)
 export async function notifyBudgetAlert(spent: number, budget: number) {
-  return sendNotification('/api/notifications/budget-alert', {
+  return sendNotification('/notifications/budget-alert', {
     message: `You've spent ${((spent/budget)*100).toFixed(0)}% of your budget`,
     spent,
     budget,
@@ -48,7 +50,7 @@ export async function notifyBudgetAlert(spent: number, budget: number) {
 
 // When water intake is low (in dashboard/page.tsx)
 export async function notifyWaterReminder(glassesConsumed: number, targetGlasses: number) {
-  return sendNotification('/api/notifications/water-reminder', {
+  return sendNotification('/notifications/water-reminder', {
     glassesConsumed,
     targetGlasses,
   });
@@ -56,7 +58,7 @@ export async function notifyWaterReminder(glassesConsumed: number, targetGlasses
 
 // When todo deadline is approaching
 export async function notifyTodoReminder(todoId: string, todoText: string) {
-  return sendNotification('/api/notifications/todo-reminder', {
+  return sendNotification('/notifications/todo-reminder', {
     todoId,
     todoText,
   });

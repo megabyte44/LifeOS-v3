@@ -5,8 +5,12 @@ import type {
   SystemSettings,
   Announcement,
   AboutPageContent,
+  UserStats,
 } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
+
+const EMPTY_USERS: UserStats[] = [];
+const EMPTY_ANNOUNCEMENTS: Announcement[] = [];
 
 // ---------- Users ----------
 
@@ -20,7 +24,7 @@ export function useAdminUsers() {
   });
 
   return {
-    users: query.data ?? [],
+    users: query.data ?? EMPTY_USERS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -113,7 +117,7 @@ export function useAdminAnnouncements() {
   });
 
   return {
-    announcements: query.data ?? [],
+    announcements: query.data ?? EMPTY_ANNOUNCEMENTS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

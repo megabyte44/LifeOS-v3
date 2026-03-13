@@ -350,7 +350,7 @@ export default function GoalsPage() {
   const handleSave = async (form: GoalFormState) => {
     const subGoalsList = form.subGoalInputs
       .filter(s => s.trim())
-      .map((title, i) => ({ id: `sg-${Date.now()}-${i}`, title, completed: false, order: i }));
+      .map((title, i) => ({ id: crypto.randomUUID(), title, completed: false, order: i }));
 
     if (editGoal) {
       await updateGoal({
@@ -359,7 +359,7 @@ export default function GoalsPage() {
           title: form.title.trim(), category: form.category,
           goalType: form.goalType || undefined, motive: form.motive,
           description: form.description,
-          targetDate: form.targetDate ? new Date(form.targetDate).toISOString() : undefined,
+          targetDate: form.targetDate || undefined,
           subGoals: subGoalsList,
         },
       });
@@ -368,7 +368,7 @@ export default function GoalsPage() {
         title: form.title.trim(), category: form.category,
         goalType: form.goalType || undefined, motive: form.motive,
         description: form.description,
-        targetDate: form.targetDate ? new Date(form.targetDate).toISOString() : undefined,
+        targetDate: form.targetDate || undefined,
         subGoals: subGoalsList, progressTrackers: [], notes: [], resources: [],
         linkedHabitIds: [], archived: false,
       });
@@ -384,19 +384,15 @@ export default function GoalsPage() {
     await updateGoal({ id: goal.id, updates: { subGoals: updated } });
   };
 
-  if (isLoading) {
-    return (
-      <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
         <div className="flex justify-center items-center h-64 gap-2">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span>Loading goals…</span>
         </div>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
+      <>
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -509,6 +505,8 @@ export default function GoalsPage() {
         open={dialogOpen} onOpenChange={setDialogOpen}
         editGoal={editGoal} onSave={handleSave}
       />
+      </>
+      )}
     </AppLayout>
   );
 }

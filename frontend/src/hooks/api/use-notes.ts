@@ -4,6 +4,7 @@ import type { Note } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['notes'] as const;
+const EMPTY_NOTES: Note[] = [];
 
 export function useNotes() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export function useNotes() {
   });
 
   return {
-    notes: query.data ?? [],
+    notes: query.data ?? EMPTY_NOTES,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/notes")
+@RequestMapping("/notes")
 @RequiredArgsConstructor
 public class NoteController {
 

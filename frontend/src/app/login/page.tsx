@@ -16,45 +16,46 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { AnvilIcon } from '@/components/ui/anvil-icon';
 
+const LoginSpinner = () => (
+  <div className="flex min-h-screen items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+  </div>
+);
 
 function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, signInWithGoogle, loading } = useAuth();
+  const { user, signInWithGoogle, loading, isSigningIn } = useAuth();
 
-  // Redirect if already logged in
+  // Redirect if already logged in or sign-in just completed
   useEffect(() => {
-    if (user && !loading) {
+    if (!loading && !isSigningIn && user) {
       const redirect = searchParams.get('redirect') || '/dashboard';
       router.replace(redirect);
     }
-  }, [user, loading, router, searchParams]);
-  
+  }, [user, loading, isSigningIn, router, searchParams]);
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-        await signInWithGoogle();
-        toast({
-            title: 'Welcome back!',
-            description: 'Successfully signed in with Google.',
-        });
+      await signInWithGoogle();
+      // Navigation is handled by the useEffect above via onAuthStateChanged
+      // Don't reset isLoading — the component will unmount on redirect
     } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Authentication Error',
-            description: error.message || 'Failed to sign in with Google.',
-        });
-        setIsLoading(false);
+      // Popup closed by user or other error — reset loading state
+      toast({
+        variant: 'destructive',
+        title: 'Authentication Error',
+        description: error.message || 'Failed to sign in with Google.',
+      });
+      setIsLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-        <div className="flex min-h-screen items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-    );
+  // Show spinner while auth is being determined or while we're about to redirect
+  if (loading || isSigningIn || (user && !loading)) {
+    return <LoginSpinner />;
   }
 
   return (
@@ -112,7 +113,8 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+    // Suspense is required by Next.js for components that use useSearchParams
+    <Suspense fallback={<LoginSpinner />}>
       <LoginContent />
     </Suspense>
   );

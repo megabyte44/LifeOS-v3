@@ -70,6 +70,11 @@ cd LifeOS-v3
    cp .env.example .env
    ```
 
+   ```powershell
+   # Windows PowerShell
+   Copy-Item .env.example .env
+   ```
+
 3. Edit `.env` and configure your settings:
    - Database credentials
    - Firebase service account
@@ -92,17 +97,34 @@ The backend will be available at `http://localhost:8000`
    CREATE DATABASE lifeos;
    ```
 
-2. Copy environment template:
+2. Navigate to backend directory:
+   ```bash
+   cd backend
+   ```
+
+3. Copy environment template:
    ```bash
    cp .env.example .env
    ```
 
-3. Update `backend/src/main/resources/application.yaml` with your database credentials
+   ```powershell
+   # Windows PowerShell
+   Copy-Item .env.example .env
+   ```
 
-4. Place your `firebase-service-account.json` in `backend/src/main/resources/`
+4. Update `src/main/resources/application.yaml` with your database credentials
 
-5. Build and run:
+5. Place your `firebase-service-account.json` in `src/main/resources/`
+
+6. Build and run:
+   ```powershell
+   # Windows (PowerShell/CMD)
+   .\mvnw.cmd clean install
+   .\mvnw.cmd spring-boot:run
+   ```
+
    ```bash
+   # macOS/Linux/Git Bash
    ./mvnw clean install
    ./mvnw spring-boot:run
    ```
@@ -250,9 +272,6 @@ The application can be installed as a PWA on supported devices:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License.
 
 ## 🆘 Troubleshooting
 
@@ -270,6 +289,15 @@ This project is licensed under the MIT License.
 - Clear Next.js cache: `rm -rf .next`
 - Clear node_modules: `rm -rf node_modules && npm install`
 - Check Node.js version compatibility
+
+### Maven Wrapper Error on Windows
+- Symptom: `'powershell' is not recognized` followed by `Cannot start maven from wrapper`
+- Cause: Maven wrapper launcher cannot find a PowerShell executable from `PATH`
+- Fix in this repository: `backend/mvnw.cmd` now checks `powershell`, `pwsh`, and `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`
+- Run commands from `backend`:
+   - `./mvnw.cmd -v`
+   - `./mvnw.cmd clean install -DskipTests`
+   - `./mvnw.cmd spring-boot:run`
 
 ## 📞 Support
 

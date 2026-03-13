@@ -278,19 +278,14 @@ export default function PlannerPage() {
   const totalItems = Object.values(weeklySchedule).reduce((s, items) => s + items.length, 0);
   const daySchedule = weeklySchedule[selectedDay] || [];
 
-  if (isLoading) {
-    return (
-      <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
         <div className="flex justify-center items-center h-64 gap-2">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <span>Loading schedule...</span>
         </div>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -567,6 +562,7 @@ export default function PlannerPage() {
           </DialogContent>
         </Dialog>
       </div>
+      )}
     </AppLayout>
   );
 }

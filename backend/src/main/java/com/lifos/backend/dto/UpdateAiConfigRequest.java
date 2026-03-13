@@ -10,4 +10,8 @@ public class UpdateAiConfigRequest {
     private Map<String, Object> modelConfig;
     private Map<String, Object> apiKeys;
     private Boolean ragEnabled;
+    private Boolean insightsEnabled;
+    private String insightsCron;
+    private Boolean evaluationEnabled;
+    private Integer evaluationSampleRate;
 }

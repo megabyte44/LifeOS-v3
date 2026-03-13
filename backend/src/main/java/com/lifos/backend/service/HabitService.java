@@ -7,19 +7,23 @@ import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.HabitRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class HabitService {
 
     private final HabitRepository habitRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)
@@ -51,6 +55,7 @@ public class HabitService {
     @Transactional
     public HabitResponse create(String uid, CreateHabitRequest req) {
         User user = getUser(uid);
+        log.info("Creating habit '{}' for user [{}]", req.getName(), uid);
         Habit h = Habit.builder()
                 .user(user)
                 .name(req.getName())
@@ -63,13 +68,18 @@ public class HabitService {
                 .sprintStartDate(req.getSprintStartDate())
                 .context(req.getContext())
                 .build();
-        return toResponse(habitRepository.save(h));
+        Habit saved = habitRepository.save(h);
+        activityLogService.log(uid, "habits", "created", saved.getId(), "Created habit: " + saved.getName());
+        return toResponse(saved);
     }
 
     @Transactional
     public HabitResponse update(String uid, UUID id, UpdateHabitRequest req) {
+        log.debug("Updating habit [{}] for user [{}]", id, uid);
         Habit h = habitRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
+        String todayStr = java.time.LocalDate.now().toString();
+        boolean wasDoneToday = isCompletedOn(h.getCompletions(), todayStr);
         if (req.getName()            != null) h.setName(req.getName());
         if (req.getIcon()            != null) h.setIcon(req.getIcon());
         if (req.getTarget()          != null) h.setTarget(req.getTarget());
@@ -79,13 +89,26 @@ public class HabitService {
         if (req.getSprintEndDate()   != null) h.setSprintEndDate(req.getSprintEndDate());
         if (req.getSprintStartDate() != null) h.setSprintStartDate(req.getSprintStartDate());
         if (req.getContext()         != null) h.setContext(req.getContext());
-        return toResponse(habitRepository.save(h));
+        Habit saved = habitRepository.save(h);
+        if (!wasDoneToday && isCompletedOn(saved.getCompletions(), todayStr)) {
+            activityLogService.log(uid, "habits", "completed", saved.getId(), "Checked in: " + saved.getName());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
     public void delete(String uid, UUID id) {
         Habit h = habitRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
+        log.info("Deleting habit [{}] for user [{}]", id, uid);
         habitRepository.delete(h);
+    }
+
+    private boolean isCompletedOn(Map<String, Object> completions, String date) {
+        if (completions == null) return false;
+        Object val = completions.get(date);
+        if (val == null) return false;
+        if (val instanceof Boolean b) return b;
+        return !"false".equalsIgnoreCase(val.toString()) && !val.toString().isBlank();
     }
 }

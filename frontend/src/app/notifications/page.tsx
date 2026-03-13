@@ -73,16 +73,11 @@ export default function NotificationsPage() {
     return data;
   }, [notifications]);
 
-  if (isLoading) {
-      return (
-          <AppLayout>
-              <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading notifications...</p></div>
-          </AppLayout>
-      );
-  }
-
   return (
     <AppLayout>
+      {isLoading ? (
+          <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2">Loading notifications...</p></div>
+      ) : (
       <div className="space-y-4">
         <header className="flex items-center justify-between">
           <div><h1 className="text-2xl font-bold font-headline">Notifications</h1><p className="text-muted-foreground">Your reminders and alerts.</p></div>
@@ -120,6 +115,7 @@ export default function NotificationsPage() {
             )}
         </div>
       </div>
+      )}
     </AppLayout>
   );
 }

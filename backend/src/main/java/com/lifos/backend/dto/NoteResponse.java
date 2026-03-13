@@ -13,4 +13,5 @@ public class NoteResponse {
     private JsonNode content;
     private String type;
     private String createdAt;   // ISO string
+    private String updatedAt;   // ISO string
 }

@@ -38,6 +38,9 @@ const nextConfig = {
   // Enable React strict mode for better development
   reactStrictMode: true,
   
+  // Explicitly define Turbopack config to avoid auto-detection warnings.
+  turbopack: {},
+  
   // Compiler optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? {
@@ -55,11 +58,6 @@ const nextConfig = {
   // Enable compression
   compress: true,
   
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // !! WARN !!
     // Dangerously allow production builds to successfully complete even if

@@ -4,6 +4,7 @@ import type { Goal } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
 const QUERY_KEY = ['goals'] as const;
+const EMPTY_GOALS: Goal[] = [];
 
 export function useGoals() {
   const { user } = useAuth();
@@ -33,7 +34,7 @@ export function useGoals() {
   });
 
   return {
-    goals: query.data ?? [],
+    goals: query.data ?? EMPTY_GOALS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,

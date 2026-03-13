@@ -45,6 +45,22 @@ public class AiConfiguration {
     @Builder.Default
     private Boolean ragEnabled = false;
 
+    @Column(name = "insights_enabled", nullable = false)
+    @Builder.Default
+    private Boolean insightsEnabled = false;
+
+    @Column(name = "insights_cron", length = 50)
+    @Builder.Default
+    private String insightsCron = "0 0 20 * * *";
+
+    @Column(name = "evaluation_enabled", nullable = false)
+    @Builder.Default
+    private Boolean evaluationEnabled = false;
+
+    @Column(name = "evaluation_sample_rate", nullable = false)
+    @Builder.Default
+    private Integer evaluationSampleRate = 1;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

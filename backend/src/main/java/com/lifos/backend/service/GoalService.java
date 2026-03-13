@@ -2,9 +2,12 @@ package com.lifos.backend.service;
 
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.*;
+import com.lifos.backend.event.EmbeddingTriggerEvent;
 import com.lifos.backend.repository.GoalRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,12 +17,15 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GoalService {
 
     private final GoalRepository goalRepo;
     private final UserRepository userRepo;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ActivityLogService activityLogService;
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
@@ -40,7 +46,7 @@ public class GoalService {
     public GoalResponse create(String uid, CreateGoalRequest req) {
         User user = userRepo.findById(uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
+        log.info("Creating goal '{}' for user [{}]", req.getTitle(), uid);
         Goal goal = Goal.builder()
                 .user(user)
                 .title(req.getTitle())
@@ -56,13 +62,20 @@ public class GoalService {
 
         applyChildren(goal, req.getProgressTrackers(), req.getSubGoals(), req.getNotes(), req.getResources());
 
-        return toResponse(goalRepo.save(goal));
+        Goal saved = goalRepo.save(goal);
+        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+                uid, "goal", saved.getId(), buildEmbedText(saved)));
+        activityLogService.log(uid, "goals", "created", saved.getId(), "Created goal: " + saved.getTitle());
+        return toResponse(saved);
     }
 
     @Transactional
     public GoalResponse update(String uid, UUID id, UpdateGoalRequest req) {
+        log.debug("Updating goal [{}] for user [{}]", id, uid);
         Goal goal = goalRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
+        boolean wasCompleted = goal.getCompletedAt() != null;
+        boolean wasArchived = Boolean.TRUE.equals(goal.getArchived());
 
         if (req.getTitle() != null) goal.setTitle(req.getTitle());
         if (req.getCategory() != null) goal.setCategory(req.getCategory());
@@ -83,14 +96,30 @@ public class GoalService {
 
         applyChildren(goal, req.getProgressTrackers(), req.getSubGoals(), req.getNotes(), req.getResources());
 
-        return toResponse(goalRepo.save(goal));
+        Goal updated = goalRepo.save(goal);
+        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+                uid, "goal", updated.getId(), buildEmbedText(updated)));
+        if (!wasCompleted && updated.getCompletedAt() != null) {
+            activityLogService.log(uid, "goals", "completed", updated.getId(), "Completed goal: " + updated.getTitle());
+        } else if (!wasArchived && Boolean.TRUE.equals(updated.getArchived())) {
+            activityLogService.log(uid, "goals", "archived", updated.getId(), "Archived goal: " + updated.getTitle());
+        }
+        return toResponse(updated);
     }
 
     @Transactional
     public void delete(String uid, UUID id) {
         Goal goal = goalRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
+        log.info("Deleting goal [{}] for user [{}]", id, uid);
+        eventPublisher.publishEvent(new EmbeddingTriggerEvent(uid, "goal", goal.getId(), null));
+        String goalTitle = goal.getTitle();
         goalRepo.delete(goal);
+        activityLogService.log(uid, "goals", "deleted", id, "Deleted goal: " + goalTitle);
+    }
+
+    private String buildEmbedText(Goal g) {
+        return g.getTitle() + "\n" + g.getDescription() + "\n" + g.getMotive();
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

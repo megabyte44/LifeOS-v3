@@ -4,23 +4,26 @@ server:
 spring:
   application:
     name: LifeOS-backend
+  config:
+    import: optional:file:.env[.properties],optional:file:./backend/.env[.properties]
 
-  # ── PostgreSQL Datasource ──
+  # ── PostgreSQL Datasource (Neon.tech) ──
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lifeos}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:365210}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-proud-glade-a4sn6exq-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_qUsA6mOMGiE4}
     driver-class-name: org.postgresql.Driver
 
   # ── JPA / Hibernate ──
   jpa:
     hibernate:
       ddl-auto: validate          # Flyway manages schema; Hibernate only validates
-    show-sql: true                 # Log SQL statements (disable in production)
+    show-sql: false                # Handled by logback (org.hibernate.SQL logger)
     open-in-view: false            # Best practice: avoid lazy-loading in controllers
     properties:
       hibernate:
-        format_sql: true
+        format_sql: true           # Pretty-print SQL logged via logback
+        highlight_sql: true        # ANSI-colour SQL keywords in console
         # dialect is auto-detected by Hibernate 7 — no need to specify
 
   # ── Flyway ──
@@ -43,8 +46,30 @@ vapid:
   private-key: ${VAPID_PRIVATE_KEY:}
   subject: "mailto:admin@lifeos.app"
 
-# ── Logging ──
+# ── Logging — detailed config in logback-spring.xml ──
 logging:
+  config: classpath:logback-spring.xml
   level:
-    com.lifos.backend: DEBUG
-    org.springframework.security: DEBUG
+    root: INFO
+
+ai:
+  provider: ${AI_PROVIDER:}
+  model: ${AI_MODEL:}
+  openai-api-key: ${OPENAI_API_KEY:}
+  openrouter-api-key: ${OPENROUTER_API_KEY:}
+  openrouter-embedding-api-key: ${OPENROUTER_EMBEDDING_API_KEY:${OPENROUTER_API_KEY:}}
+  gemini-api-key: ${GEMINI_API_KEY:${GOOGLE_API_KEY:}}
+  embedding:
+    dimensions: 1536
+    max-input-chars: 24000
+  streaming:
+    connect-timeout: 10s
+    response-timeout: 120s
+  rag:
+    default-vector-limit: 5
+    max-context-chunks: 5
+  async:
+    core-pool-size: 4
+    max-pool-size: 8
+    queue-capacity: 100
+    thread-name-prefix: ai-

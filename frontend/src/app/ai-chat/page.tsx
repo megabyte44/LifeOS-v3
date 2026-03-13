@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,8 @@ import {
   Menu,
   Sparkles,
   MessageCircle,
-  Settings
+  Settings,
+  Brain
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +59,25 @@ const AI_PERSONALITIES = {
   }
 };
 
+const PERSONALITY_COLORS: Record<string, string> = {
+  casual: 'border-orange-500 bg-orange-50 dark:bg-orange-950/20',
+  personal: 'border-purple-500 bg-purple-50 dark:bg-purple-950/20',
+  professional: 'border-blue-500 bg-blue-50 dark:bg-blue-950/20',
+};
+
+const PERSONALITY_DOT_BG: Record<string, string> = {
+  casual: 'bg-orange-500',
+  personal: 'bg-purple-500',
+  professional: 'bg-blue-500',
+};
+
+const SUGGESTED_PROMPTS = [
+  { text: 'Help me plan my day', icon: '📅' },
+  { text: 'Review my habit progress', icon: '🔥' },
+  { text: 'Give me budget advice', icon: '💰' },
+  { text: 'Motivate me to stay on track', icon: '🚀' },
+];
+
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -81,6 +102,7 @@ function AiChatContent() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [chatMode, setChatMode] = useState<'normal' | 'chat_buddy'>('normal');
   const [selectedPersonality, setSelectedPersonality] = useState<keyof typeof AI_PERSONALITIES>('casual');
   const [customInstructions] = useState('');
   const [isTemporaryChat, setIsTemporaryChat] = useState(false);
@@ -89,7 +111,7 @@ function AiChatContent() {
   const [editingTitle, setEditingTitle] = useState('');
   const [aiSettings, setAiSettings] = useState({
     defaultPersonality: 'casual' as keyof typeof AI_PERSONALITIES,
-    preferredModel: 'gemini',
+    preferredModel: '',
     enableContextMemory: true,
     maxContextLength: 10
   });
@@ -205,7 +227,7 @@ function AiChatContent() {
     // Mock settings
     const mockSettings = {
         defaultPersonality: 'casual' as keyof typeof AI_PERSONALITIES,
-        preferredModel: 'gemini',
+      preferredModel: '',
         enableContextMemory: true,
         maxContextLength: 10
     };
@@ -280,9 +302,10 @@ function AiChatContent() {
       timestamp: new Date()
     };
 
+    const effectiveSessionId = isTemporaryChat ? 'temp' : session!.id;
+
     // Add user message to session or temporary chat
     if (isTemporaryChat) {
-      // For temporary chat, just use a temporary session structure
       if (!currentSession) {
         const tempSession = {
           id: 'temp',
@@ -301,7 +324,6 @@ function AiChatContent() {
         ));
       }
     } else {
-      // Add user message to regular session
       const updatedSession = {
         ...session!,
         messages: [...session!.messages, userMessage]
@@ -312,6 +334,20 @@ function AiChatContent() {
     setMessage('');
     setIsLoading(true);
 
+    // Insert AI placeholder immediately so the user sees activity
+    const aiMsgId = `msg-${Date.now()}-ai`;
+    const aiPlaceholder: ChatMessage = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date()
+    };
+    setSessions(prev => prev.map(s =>
+      s.id === effectiveSessionId
+        ? { ...s, messages: [...s.messages, aiPlaceholder] }
+        : s
+    ));
+
     try {
       const systemInstructions = AI_PERSONALITIES[selectedPersonality].systemInstructions + 
         (customInstructions ? `\n\nAdditional instructions: ${customInstructions}` : '');
@@ -320,80 +356,105 @@ function AiChatContent() {
         ? (session?.messages || []).slice(-aiSettings.maxContextLength)
         : [];
 
+      const normalizedMessages = [
+        { role: 'system', content: systemInstructions },
+        ...contextMessages.map((m) => ({ role: m.role, content: m.content })),
+        { role: userMessage.role, content: userMessage.content }
+      ];
+
       const token = await user.getIdToken();
 
-      const response = await fetch('/api/ai/chat', {
+      const requestBody = {
+        messages: normalizedMessages,
+        ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {}),
+        mode: chatMode
+      };
+
+      const response = await fetch('/api/ai/chat/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: systemInstructions },
-            ...contextMessages,
-            userMessage
-          ],
-          model: aiSettings.preferredModel
-        })
+        body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get AI response');
+      if (!response.ok || !response.body) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error((errorData as any).error || `Request failed: ${response.status}`);
       }
 
-      const data = await response.json();
-      
-      const aiMessage: ChatMessage = {
-        id: `msg-${Date.now()}-ai`,
-        role: 'assistant',
-        content: data.text || data.response || 'I apologize, but I encountered an error processing your request.',
-        timestamp: new Date()
-      };
+      // Stream is connected — hide dots and let tokens fill the placeholder
+      setIsLoading(false);
 
-      if (isTemporaryChat) {
-        setSessions(prev => prev.map(s => 
-          s.id === 'temp' 
-            ? { ...s, messages: [...s.messages, aiMessage] }
-            : s
-        ));
-      } else {
-        setSessions(prev => prev.map(s => 
-          s.id === session!.id 
-            ? { ...s, messages: [...s.messages, aiMessage] }
-            : s
-        ));
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let fullContent = '';
+      let isDone = false;
+
+      while (!isDone) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trimEnd();
+          if (trimmed.startsWith('data:')) {
+            // Spring SseEmitter writes "data:TOKEN" (no separator space).
+            // The leading space in slice(5) IS part of the token content — never strip it.
+            const rawData = trimmed.slice(5);
+
+            // Some providers/proxies send chunks as JSON strings (e.g. "\"hello\"").
+            // Decode once when possible so UI doesn't render quote artifacts.
+            let data = rawData;
+            try {
+              const parsed = JSON.parse(rawData);
+              if (typeof parsed === 'string') {
+                data = parsed;
+              }
+            } catch {
+              // Non-JSON chunk, use as-is.
+            }
+
+            if (data === '[DONE]') { isDone = true; break; }
+            if (data) {
+              // Decode escaped newlines sent from backend
+              fullContent += data.replace(/\\n/g, '\n');
+              setSessions(prev => prev.map(s =>
+                s.id === effectiveSessionId
+                  ? { ...s, messages: s.messages.map(m =>
+                      m.id === aiMsgId ? { ...m, content: fullContent } : m
+                    )}
+                  : s
+              ));
+            }
+          }
+        }
+      }
+
+      reader.cancel();
+
+      if (!fullContent) {
+        throw new Error('No content received from AI');
       }
 
     } catch (error: any) {
       console.error('Chat error:', error);
-      
-      // Add error message to chat
-      const errorMessage: ChatMessage = {
-        id: `msg-${Date.now()}-error`,
-        role: 'assistant',
-        content: `⚠️ **Error**: ${error.message || 'Failed to get AI response'}\n\nPlease check your internet connection and try again. If you're using Gemini API, make sure your API key is properly configured in the environment variables.`,
-        timestamp: new Date()
-      };
-
-      if (isTemporaryChat) {
-        setSessions(prev => prev.map(s => 
-          s.id === 'temp' 
-            ? { ...s, messages: [...s.messages, errorMessage] }
-            : s
-        ));
-      } else {
-        setSessions(prev => prev.map(s => 
-          s.id === session!.id 
-            ? { ...s, messages: [...s.messages, errorMessage] }
-            : s
-        ));
-      }
-
+      const errorContent = `⚠️ **Error**: ${error.message || 'Failed to get AI response'}\n\nPlease try again.`;
+      setSessions(prev => prev.map(s =>
+        s.id === effectiveSessionId
+          ? { ...s, messages: s.messages.map(m =>
+              m.id === aiMsgId ? { ...m, content: errorContent } : m
+            )}
+          : s
+      ));
       toast({
         title: 'Chat Error',
-        description: 'Failed to get AI response. Error message added to chat.',
+        description: 'Failed to get AI response. Error added to chat.',
         variant: 'destructive'
       });
     } finally {
@@ -540,36 +601,33 @@ function AiChatContent() {
           </div>
 
           {/* Sidebar Content */}
-          <div className="flex flex-col h-full p-2 space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-xs font-semibold text-muted-foreground">Manage Chats</h3>
-              <p className="text-xs text-muted-foreground">
-                Start fresh conversations or jump back into previous sessions.
-              </p>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
-                <Badge variant="outline" className="text-xs px-1 py-0 h-4">
-                  💾 Auto-saved locally
-                </Badge>
-                <span className="text-[10px]">Chats saved in browser storage</span>
-              </div>
-            </div>
-
+          <div className="flex flex-col h-full p-2.5 space-y-3">
             {/* New Chat Button */}
-            <Button onClick={createNewSession} className="w-full" size="sm">
-              <Plus className="h-3 w-3 mr-1" />
-              <span className="text-xs">Start New Chat</span>
+            <Button onClick={createNewSession} className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-sm" size="sm">
+              <Plus className="h-4 w-4 mr-1.5" />
+              New Chat
             </Button>
 
-            {/* Clear All Button */}
+            {/* Temporary Chat Toggle */}
+            <Button
+              onClick={toggleTemporaryChat}
+              variant={isTemporaryChat ? "default" : "outline"}
+              size="sm"
+              className={cn("w-full", isTemporaryChat && "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-0")}
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              {isTemporaryChat ? "Exit Temporary" : "Temporary Chat"}
+            </Button>
+
             {sessions.filter(s => s.id !== 'temp').length > 0 && (
               <Button 
                 onClick={clearAllSessions} 
-                variant="destructive" 
-                className="w-full" 
+                variant="ghost" 
+                className="w-full text-xs text-destructive hover:text-destructive hover:bg-destructive/10" 
                 size="sm"
               >
                 <Trash2 className="h-3 w-3 mr-1" />
-                <span className="text-xs">Clear All Chats</span>
+                Clear All
               </Button>
             )}
 
@@ -608,7 +666,7 @@ function AiChatContent() {
                         <div className="flex items-center gap-2 mb-1">
                           <div className={cn(
                             "w-2 h-2 rounded-full",
-                            `bg-${AI_PERSONALITIES[session.personality].color}-500`
+                            PERSONALITY_DOT_BG[session.personality]
                           )} />
                           
                           {editingSessionId === session.id ? (
@@ -702,44 +760,60 @@ function AiChatContent() {
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0 relative min-h-0">
           {/* Chat Header - Desktop Only */}
-          <div className="hidden md:flex items-center justify-between px-3 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="hidden md:flex items-center justify-between px-4 py-2.5 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="flex items-center gap-3">
               <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center",
-                `bg-gradient-to-r ${personality.gradient}`
+                "w-9 h-9 rounded-xl flex items-center justify-center shadow-sm",
+                `bg-gradient-to-br ${personality.gradient}`
               )}>
                 <PersonalityIcon className="h-4 w-4 text-white" />
               </div>
               <div>
-                <h2 className="font-semibold">
+                <h2 className="font-semibold text-sm">
                   {isTemporaryChat ? "Temporary Chat" : (currentSession?.title || personality.name)}
                 </h2>
                 <p className="text-xs text-muted-foreground">
                   {isTemporaryChat 
                     ? "This chat won't be saved" 
-                    : `${currentSession?.messages.length || 0} messages`
+                    : `${currentSession?.messages.length || 0} messages · ${personality.name}`
                   }
                 </p>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Prominent Temporary Chat Button - Desktop */}
-              <Button
-                onClick={toggleTemporaryChat}
-                variant={isTemporaryChat ? "default" : "outline"}
-                className="flex items-center gap-2 flex-1"
+              <button
+                onClick={() => setChatMode(chatMode === 'normal' ? 'chat_buddy' : 'normal')}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-full border font-medium transition-colors",
+                  chatMode === 'chat_buddy'
+                    ? "border-purple-400 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                )}
               >
-                <Sparkles className="h-4 w-4" />
-                {isTemporaryChat ? "Exit Temporary Chat" : "Temporary Chat"}
-              </Button>
-              
-              {/* AI Settings Button */}
+                {chatMode === 'chat_buddy' ? '👋 Buddy' : '🤖 Normal'}
+              </button>
+              {isTemporaryChat && (
+                <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 text-xs">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Ephemeral
+                </Badge>
+              )}
+              <Link href="/ai-chat/memories">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  title="AI Memories"
+                >
+                  <Brain className="h-4 w-4" />
+                </Button>
+              </Link>
               <Button
                 onClick={() => window.open('/settings?tab=ai', '_blank')}
-                variant="outline"
+                variant="ghost"
                 size="icon"
-                className="flex-shrink-0"
+                className="h-8 w-8"
               >
                 <Settings className="h-4 w-4" />
               </Button>
@@ -752,27 +826,32 @@ function AiChatContent() {
               <div className="max-w-4xl mx-auto space-y-3 pb-4">
                 {/* Welcome Message */}
                 {(!currentSession || currentSession.messages.length === 0) && !isTemporaryChat && (
-                  <div className="text-center py-12">
-                    <div className={cn(
-                      "w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center",
-                      `bg-gradient-to-r ${personality.gradient}`
-                    )}>
-                      <PersonalityIcon className="h-8 w-8 text-white" />
+                  <div className="py-8 md:py-12 space-y-8">
+                    {/* Hero */}
+                    <div className="text-center space-y-4">
+                      <div className="relative inline-block">
+                        <div className={cn(
+                          "w-20 h-20 rounded-2xl mx-auto flex items-center justify-center shadow-lg",
+                          `bg-gradient-to-br ${personality.gradient}`
+                        )}>
+                          <PersonalityIcon className="h-10 w-10 text-white" />
+                        </div>
+                        <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 -z-10 blur-sm" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold mb-1">
+                          Chat with {personality.name}
+                        </h3>
+                        <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                          {personality.description}
+                        </p>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      Chat with {personality.name}
-                    </h3>
-                    <p className="text-muted-foreground mb-2 max-w-md mx-auto">
-                      {personality.description}
-                    </p>
-                    <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:text-yellow-400">
-                      ⚠️ In Development
-                    </Badge>
 
                     {/* Personality Selector */}
-                    <div className="mb-6">
-                      <h4 className="text-sm font-medium mb-3 text-muted-foreground">Choose AI Personality</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto">
+                    <div>
+                      <h4 className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wider text-center">Choose Personality</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-w-2xl mx-auto">
                         {Object.entries(AI_PERSONALITIES).map(([key, p]) => {
                           const Icon = p.icon;
                           const isSelected = selectedPersonality === key;
@@ -781,27 +860,29 @@ function AiChatContent() {
                               key={key}
                               onClick={() => setSelectedPersonality(key as keyof typeof AI_PERSONALITIES)}
                               className={cn(
-                                "relative p-4 rounded-lg border-2 transition-all text-left hover:scale-105",
+                                "relative p-4 rounded-xl border-2 transition-all text-left hover:shadow-md",
                                 isSelected
-                                  ? `border-${p.color}-500 bg-${p.color}-50 dark:bg-${p.color}-950/20`
-                                  : "border-border hover:border-muted-foreground/50"
+                                  ? PERSONALITY_COLORS[key]
+                                  : "border-border hover:border-muted-foreground/30"
                               )}
                             >
                               <div className="flex items-start gap-3">
                                 <div className={cn(
-                                  "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
-                                  `bg-gradient-to-r ${p.gradient}`
+                                  "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
+                                  `bg-gradient-to-br ${p.gradient}`
                                 )}>
                                   <Icon className="h-5 w-5 text-white" />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-sm mb-1">{p.name}</div>
-                                  <div className="text-xs text-muted-foreground">{p.description}</div>
+                                  <div className="font-semibold text-sm">{p.name}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{p.description}</div>
                                 </div>
                               </div>
                               {isSelected && (
                                 <div className="absolute top-2 right-2">
-                                  <Check className="h-4 w-4 text-primary" />
+                                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center", `bg-gradient-to-br ${p.gradient}`)}>
+                                    <Check className="h-3 w-3 text-white" />
+                                  </div>
                                 </div>
                               )}
                             </button>
@@ -810,18 +891,57 @@ function AiChatContent() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto text-sm">
-                      <div className="p-3 rounded-lg bg-muted/50 text-left">
-                        <div className="font-medium mb-1">💡 Pro Tip</div>
-                        <div className="text-muted-foreground">
-                          Use "Temporary Chat" for sensitive conversations that won't be saved
-                        </div>
+                    {/* Mode Selector */}
+                    <div>
+                      <h4 className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wider text-center">Chat Mode</h4>
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => setChatMode('normal')}
+                          className={cn(
+                            "px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                            chatMode === 'normal'
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border hover:border-muted-foreground/30"
+                          )}
+                        >
+                          🤖 Normal
+                        </button>
+                        <button
+                          onClick={() => setChatMode('chat_buddy')}
+                          className={cn(
+                            "px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all",
+                            chatMode === 'chat_buddy'
+                              ? "border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                              : "border-border hover:border-muted-foreground/30"
+                          )}
+                        >
+                          👋 Chat Buddy
+                        </button>
                       </div>
-                      <div className="p-3 rounded-lg bg-muted/50 text-left">
-                        <div className="font-medium mb-1">🎯 Best Practice</div>
-                        <div className="text-muted-foreground">
-                          Be specific in your questions for better responses
-                        </div>
+                      {chatMode === 'chat_buddy' && (
+                        <p className="text-xs text-center text-muted-foreground mt-2 max-w-xs mx-auto">
+                          Chat Buddy gets to know you and builds your AI profile
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Suggested Prompts */}
+                    <div>
+                      <h4 className="text-xs font-semibold mb-3 text-muted-foreground uppercase tracking-wider text-center">Try asking</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg mx-auto">
+                        {SUGGESTED_PROMPTS.map((prompt) => (
+                          <button
+                            key={prompt.text}
+                            onClick={() => {
+                              setMessage(prompt.text);
+                              inputRef.current?.focus();
+                            }}
+                            className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-primary/30 hover:shadow-sm transition-all text-left text-sm group"
+                          >
+                            <span className="text-lg shrink-0">{prompt.icon}</span>
+                            <span className="text-muted-foreground group-hover:text-foreground transition-colors">{prompt.text}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -829,18 +949,42 @@ function AiChatContent() {
 
                 {/* Temporary Chat Welcome */}
                 {isTemporaryChat && (!currentSession || currentSession.messages.length === 0) && (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center bg-gradient-to-r from-orange-500 to-red-500">
-                      <Sparkles className="h-8 w-8 text-white" />
+                  <div className="py-8 md:py-12 space-y-6">
+                    <div className="text-center space-y-4">
+                      <div className="relative inline-block">
+                        <div className="w-20 h-20 rounded-2xl mx-auto flex items-center justify-center bg-gradient-to-br from-orange-500 to-red-500 shadow-lg">
+                          <Sparkles className="h-10 w-10 text-white" />
+                        </div>
+                        <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-br from-orange-500/20 to-red-500/20 -z-10 blur-sm" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold mb-1">Temporary Chat</h3>
+                        <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                          This conversation won&apos;t be saved. Perfect for sensitive or one-time questions.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800">
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Ephemeral Mode
+                      </Badge>
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">Temporary Chat Mode</h3>
-                    <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-                      This conversation won't be saved to your chat history. Perfect for sensitive or one-time questions.
-                    </p>
-                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                      <Sparkles className="h-3 w-3 mr-1" />
-                      Ephemeral Mode Active
-                    </Badge>
+
+                    {/* Suggested Prompts */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg mx-auto">
+                      {SUGGESTED_PROMPTS.map((prompt) => (
+                        <button
+                          key={prompt.text}
+                          onClick={() => {
+                            setMessage(prompt.text);
+                            inputRef.current?.focus();
+                          }}
+                          className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-primary/30 hover:shadow-sm transition-all text-left text-sm group"
+                        >
+                          <span className="text-lg shrink-0">{prompt.icon}</span>
+                          <span className="text-muted-foreground group-hover:text-foreground transition-colors">{prompt.text}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -853,53 +997,57 @@ function AiChatContent() {
                       msg.role === 'user' ? "items-end" : "items-start"
                     )}
                   >
-                    {/* Profile Icon Above Message */}
+                    {/* Profile Icon + Name + Time */}
                     <div className={cn(
-                      "flex items-center gap-2 mb-1",
+                      "flex items-center gap-2 mb-1.5",
                       msg.role === 'user' ? "flex-row-reverse" : "flex-row"
                     )}>
                       <div className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0",
+                        "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm",
                         msg.role === 'user' 
                           ? "bg-primary" 
-                          : `bg-gradient-to-r ${personality.gradient}`
+                          : `bg-gradient-to-br ${personality.gradient}`
                       )}>
                         {msg.role === 'user' ? (
-                          <User className="h-3 w-3 text-primary-foreground" />
+                          <User className="h-3.5 w-3.5 text-primary-foreground" />
                         ) : (
-                          <PersonalityIcon className="h-3 w-3 text-white" />
+                          <PersonalityIcon className="h-3.5 w-3.5 text-white" />
                         )}
                       </div>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs font-medium text-muted-foreground">
                         {msg.role === 'user' ? 'You' : personality.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/60">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                     
                     {/* Message Content */}
                     <div className={cn(
-                      "max-w-[95%] md:max-w-[85%] rounded-xl p-3 relative",
+                      "max-w-[92%] md:max-w-[80%] rounded-2xl px-4 py-3 relative shadow-sm",
                       msg.role === 'user' 
                         ? "bg-primary text-primary-foreground" 
-                        : "bg-muted"
+                        : "bg-muted/80 border border-border/40"
                     )}>
                       {msg.role === 'assistant' ? (
                         <MarkdownRenderer content={msg.content} />
                       ) : (
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
                       )}
                       
                       {/* Message Actions */}
                       <div className={cn(
-                        "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity",
-                        msg.role === 'user' ? "text-primary-foreground/70" : "text-muted-foreground"
+                        "absolute -bottom-3 opacity-0 group-hover:opacity-100 transition-all duration-200",
+                        msg.role === 'user' ? "right-2" : "left-2"
                       )}>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          className="h-6 w-6 p-0 hover:bg-background/20"
+                          className="h-6 px-2 text-[10px] bg-background shadow-sm rounded-full"
                           onClick={() => copyMessage(msg.content)}
                         >
-                          <Copy className="h-3 w-3" />
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy
                         </Button>
                       </div>
                     </div>
@@ -908,27 +1056,25 @@ function AiChatContent() {
 
                 {/* Loading Message */}
                 {isLoading && (
-                  <div className="flex flex-col items-start group">
-                    {/* Profile Icon Above Loading Message */}
-                    <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-col items-start">
+                    <div className="flex items-center gap-2 mb-1.5">
                       <div className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center",
-                        `bg-gradient-to-r ${personality.gradient}`
+                        "w-7 h-7 rounded-lg flex items-center justify-center shadow-sm",
+                        `bg-gradient-to-br ${personality.gradient}`
                       )}>
-                        <PersonalityIcon className="h-3 w-3 text-white animate-pulse" />
+                        <PersonalityIcon className="h-3.5 w-3.5 text-white animate-pulse" />
                       </div>
-                      <span className="text-xs text-muted-foreground">{personality.name}</span>
+                      <span className="text-xs font-medium text-muted-foreground">{personality.name}</span>
                     </div>
                     
-                    {/* Loading Message Content */}
-                    <div className="bg-muted rounded-xl p-3 max-w-xs">
-                      <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="bg-muted/80 border border-border/40 rounded-2xl px-4 py-3 shadow-sm">
+                      <div className="flex items-center gap-3 text-muted-foreground">
                         <div className="flex space-x-1">
                           <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                           <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                           <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
-                        <span className="text-sm">Thinking...</span>
+                        <span className="text-sm font-medium">Thinking...</span>
                       </div>
                     </div>
                   </div>
@@ -940,7 +1086,7 @@ function AiChatContent() {
           </div>
 
           {/* Fixed Input Bar at Bottom */}
-          <div className="fixed bottom-16 left-0 right-0 md:absolute md:bottom-0 md:left-0 md:right-0 border-t bg-background backdrop-blur supports-[backdrop-filter]:bg-background/95 shadow-lg z-20">
+          <div className="fixed bottom-16 left-0 right-0 md:absolute md:bottom-0 md:left-0 md:right-0 border-t bg-background/95 backdrop-blur-lg supports-[backdrop-filter]:bg-background/80 shadow-[0_-2px_20px_rgba(0,0,0,0.06)] z-20">
             <div className="px-3 py-3 md:px-4 md:py-3 max-w-4xl md:mx-auto">
               <div className="flex items-end gap-3">
                 <div className="flex-1 relative">
@@ -949,7 +1095,7 @@ function AiChatContent() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder={`Message ${personality.name}...`}
-                    className="min-h-[44px] max-h-32 resize-none pr-12 text-sm rounded-2xl border-2 border-primary/20 focus:border-primary transition-colors"
+                    className="min-h-[48px] max-h-36 resize-none pr-14 text-sm rounded-2xl border-2 border-border/60 focus:border-primary/60 bg-muted/30 focus:bg-background transition-all shadow-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -961,32 +1107,37 @@ function AiChatContent() {
                     onClick={sendMessage}
                     disabled={!message.trim() || isLoading}
                     size="sm"
-                    className="absolute right-2 bottom-2 h-8 w-8 p-0 rounded-xl bg-primary hover:bg-primary/90 transition-colors"
+                    className={cn(
+                      "absolute right-2 bottom-2 h-9 w-9 p-0 rounded-xl transition-all shadow-sm",
+                      message.trim() 
+                        ? `bg-gradient-to-br ${personality.gradient} hover:shadow-md` 
+                        : "bg-muted text-muted-foreground"
+                    )}
                   >
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
               
-              {/* Input Help Text - Mobile Optimized */}
-              <div className="flex items-center justify-between mt-2 px-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {isTemporaryChat ? "Temporary chat - not saved" : "Enter to send"}
-                  </span>
-                  {process.env.NEXT_PUBLIC_GEMINI_API_KEY ? (
-                    <Badge variant="secondary" className="text-xs px-2 py-0.5 hidden sm:inline-flex">
-                      🤖 Gemini
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs px-2 py-0.5 hidden sm:inline-flex">
-                      🤖 Mock
-                    </Badge>
-                  )}
-                </div>
-                <div className="text-xs">
+              {/* Input Help Text */}
+              <div className="flex items-center justify-between mt-1.5 px-1">
+                <span className="text-[11px] text-muted-foreground/70">
+                  {isTemporaryChat ? "🔒 Temporary — not saved" : "↵ Enter to send · Shift+Enter for new line"}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setChatMode(chatMode === 'normal' ? 'chat_buddy' : 'normal')}
+                    className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full border font-medium transition-colors",
+                      chatMode === 'chat_buddy'
+                        ? "border-purple-400 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30"
+                        : "border-border text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {chatMode === 'chat_buddy' ? '👋 Buddy' : '🤖 Normal'}
+                  </button>
                   {isTemporaryChat && (
-                    <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs px-2 py-0.5">
+                    <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 text-[10px] px-1.5 py-0 h-4">
                       Temp
                     </Badge>
                   )}

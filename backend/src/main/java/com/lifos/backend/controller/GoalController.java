@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/goals")
+@RequestMapping("/goals")
 @RequiredArgsConstructor
 public class GoalController {
 

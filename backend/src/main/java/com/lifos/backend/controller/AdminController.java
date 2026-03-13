@@ -3,6 +3,7 @@ package com.lifos.backend.controller;
 import com.lifos.backend.dto.*;
 import com.lifos.backend.security.SecurityUtils;
 import com.lifos.backend.service.AdminService;
+import com.lifos.backend.service.EmbeddingBackfillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -13,11 +14,12 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/admin")
 @RequiredArgsConstructor
 public class AdminController {
 
     private final AdminService adminService;
+    private final EmbeddingBackfillService embeddingBackfillService;
 
     /** GET /api/admin/check — anyone authenticated can query this */
     @GetMapping("/check")
@@ -101,5 +103,19 @@ public class AdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public AboutPageResponse updateAbout(@RequestBody UpdateAboutPageRequest req) {
         return adminService.updateAbout(SecurityUtils.getCurrentUserUid(), req);
+    }
+
+    // ── Embedding Backfill ────────────────────────────────────────────────────
+
+    /**
+     * POST /api/admin/backfill-embeddings
+     * Queues async re-embedding of all notes and goals for every user.
+     * Safe to call multiple times — deduplicates by content hash.
+     */
+    @PostMapping("/backfill-embeddings")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<String, String> backfillEmbeddings() {
+        embeddingBackfillService.backfillAll();
+        return Map.of("status", "queued", "message", "Backfill started in background");
     }
 }

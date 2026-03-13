@@ -2131,9 +2131,9 @@ export default function GymPage() {
   const getWorkoutDayInfo = useWorkoutDayInfo(cyclicalWorkoutSplit, cycleConfig);
   const todaysWorkoutInfo = useMemo(() => getWorkoutDayInfo(new Date()), [getWorkoutDayInfo]);
 
-  if (isLoading) {
-    return (
-      <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
         <div className="space-y-6">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
@@ -2142,12 +2142,8 @@ export default function GymPage() {
             <Skeleton className="h-80 w-full" />
           </div>
         </div>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
+      <>
       <div className="space-y-6">
         <GymTracker 
           proteinIntakes={proteinIntakes}
@@ -2198,6 +2194,8 @@ export default function GymPage() {
         onWorkoutSplitChange={handleWorkoutSplitUpdate}
         todaysExercises={todaysWorkoutInfo.exercises}
       />
+      </>
+      )}
     </AppLayout>
   );
 }

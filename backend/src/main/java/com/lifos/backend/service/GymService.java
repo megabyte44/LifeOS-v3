@@ -4,6 +4,7 @@ import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.*;
 import com.lifos.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GymService {
@@ -23,6 +25,7 @@ public class GymService {
     private final GymCompletionRepository gymCompletionRepo;
     private final CustomFoodRepository customFoodRepo;
     private final ProteinTargetRepository proteinTargetRepo;
+    private final ActivityLogService activityLogService;
 
     // ── Workout Split ─────────────────────────────────────────────────────────
 
@@ -35,6 +38,7 @@ public class GymService {
 
     @Transactional
     public Map<String, Object> updateWorkoutSplit(String uid, Map<String, Object> split) {
+        log.info("Updating workout split for user [{}]", uid);
         WorkoutSplit row = workoutSplitRepo.findByUserUid(uid).orElse(
                 WorkoutSplit.builder().userUid(uid).build()
         );
@@ -53,6 +57,7 @@ public class GymService {
 
     @Transactional
     public CycleConfigResponse updateCycleConfig(String uid, CycleConfigResponse req) {
+        log.info("Updating cycle config for user [{}]", uid);
         CycleConfig row = cycleConfigRepo.findByUserUid(uid).orElse(
                 CycleConfig.builder().userUid(uid).build()
         );
@@ -71,18 +76,23 @@ public class GymService {
 
     @Transactional
     public ProteinIntakeResponse addProteinIntake(String uid, CreateProteinIntakeRequest req) {
+        log.debug("Adding protein intake {}g for user [{}]", req.getAmount(), uid);
         ProteinIntake intake = ProteinIntake.builder()
                 .userUid(uid)
                 .amount(req.getAmount())
                 .timestamp(req.getTimestamp() != null ? req.getTimestamp() : java.time.Instant.now())
                 .build();
-        return toProteinDto(proteinIntakeRepo.save(intake));
+        ProteinIntake saved = proteinIntakeRepo.save(intake);
+        activityLogService.log(uid, "gym", "protein_logged", saved.getId(),
+                "Logged " + req.getAmount() + "g protein");
+        return toProteinDto(saved);
     }
 
     @Transactional
     public void deleteProteinIntake(String uid, UUID id) {
         ProteinIntake row = proteinIntakeRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Protein intake not found"));
+        log.info("Deleting protein intake [{}] for user [{}]", id, uid);
         proteinIntakeRepo.delete(row);
     }
 
@@ -108,6 +118,7 @@ public class GymService {
     public void deleteFoodItem(String uid, UUID id) {
         FoodLogItem row = foodLogRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Food item not found"));
+        log.info("Deleting food log item [{}] for user [{}]", id, uid);
         foodLogRepo.delete(row);
     }
 
@@ -128,6 +139,8 @@ public class GymService {
         Map<String, Object> completions = new HashMap<>(row.getCompletions());
         if (Boolean.TRUE.equals(req.getCompleted())) {
             completions.put(req.getDate(), true);
+            activityLogService.log(uid, "gym", "workout_completed", null,
+                    "Completed gym workout for " + req.getDate());
         } else {
             completions.remove(req.getDate());
         }

@@ -8,6 +8,15 @@ import type {
 } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
+// Stable empty fallbacks — avoids new object/array literals on every render
+const EMPTY_PROTEIN_INTAKES: ProteinIntake[] = [];
+const EMPTY_FOOD_LOG: LoggedFoodItem[] = [];
+const EMPTY_COMPLETIONS: Record<string, boolean> = {};
+const EMPTY_CUSTOM_FOODS: string[] = [];
+const EMPTY_HABITS: unknown[] = [];
+const EMPTY_WORKOUT_SPLIT = {} as CyclicalWorkoutSplit;
+const DEFAULT_CYCLE_CONFIG: CycleConfig = { startDate: '', startDayKey: 'Day 1' };
+
 // Query keys
 const KEYS = {
   workoutSplit: ['gym', 'workout-split'] as const,
@@ -132,13 +141,13 @@ export function useGym() {
 
   return {
     // Data
-    workoutSplit: workoutSplitQuery.data ?? ({} as CyclicalWorkoutSplit),
-    cycleConfig: cycleConfigQuery.data ?? { startDate: new Date().toISOString().split('T')[0], startDayKey: 'Day 1' },
-    proteinIntakes: proteinIntakesQuery.data ?? [],
-    loggedFoodItems: foodLogQuery.data ?? [],
-    completedWorkouts: completedWorkoutsQuery.data ?? {},
-    customFoodItems: customFoodsQuery.data ?? [],
-    gymHabits: gymHabitsQuery.data ?? [],
+    workoutSplit: workoutSplitQuery.data ?? EMPTY_WORKOUT_SPLIT,
+    cycleConfig: cycleConfigQuery.data ?? DEFAULT_CYCLE_CONFIG,
+    proteinIntakes: proteinIntakesQuery.data ?? EMPTY_PROTEIN_INTAKES,
+    loggedFoodItems: foodLogQuery.data ?? EMPTY_FOOD_LOG,
+    completedWorkouts: completedWorkoutsQuery.data ?? EMPTY_COMPLETIONS,
+    customFoodItems: customFoodsQuery.data ?? EMPTY_CUSTOM_FOODS,
+    gymHabits: gymHabitsQuery.data ?? EMPTY_HABITS,
     proteinTarget: proteinTargetQuery.data ?? 150,
 
     // Loading

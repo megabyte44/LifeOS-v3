@@ -95,6 +95,20 @@ export default function ExpensesPage() {
   const [autoResetEnabled, setAutoResetEnabled] = useState(false);
   const [lastResetDate, setLastResetDate] = useState<string>('');
 
+  // Load auto-reset settings from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lifeos-auto-reset');
+      if (saved) {
+        const { enabled, lastDate } = JSON.parse(saved) as { enabled: boolean; lastDate: string };
+        setAutoResetEnabled(enabled ?? false);
+        setLastResetDate(lastDate ?? '');
+      }
+    } catch (e) {
+      console.error('Failed to load auto-reset settings:', e);
+    }
+  }, []);
+
   // Auto-reset logic: check if we're in a new month and auto-reset is enabled
   useEffect(() => {
     if (!user || !autoResetEnabled || !lastResetDate) return;
@@ -162,8 +176,19 @@ export default function ExpensesPage() {
   };
   
   const handleDeleteTransaction = async (id: string) => {
+    // Optimistic delete with rollback on failure
+    const snapshot = transactions.find(t => t.id === id);
     setTransactions(prev => prev.filter(t => t.id !== id));
-    try { await deleteTransactionApi(id); } catch (e) { console.error(e); }
+    try {
+      await deleteTransactionApi(id);
+    } catch (e) {
+      console.error('Failed to delete transaction — rolling back:', e);
+      if (snapshot) {
+        setTransactions(prev =>
+          [...prev, snapshot].sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime())
+        );
+      }
+    }
   };
   
   const handleAddTransaction = async (newTxn: Transaction) => {
@@ -179,50 +204,57 @@ export default function ExpensesPage() {
     const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
     const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
     const remainingBalance = income - expenses;
-    
-    console.log('Carrying over balance from previous month:', formatCurrency(remainingBalance));
-    
-    // Keep only fees, remove all income and expense transactions
-    const updatedTransactions = transactions.filter(t => t.type === 'fee');
-    
-    // If there's a positive remaining balance, add it as income for the new month
+
+    // Delete all non-fee transactions from the backend
+    const toDelete = transactions.filter(t => t.type !== 'fee');
+    await Promise.all(toDelete.map(t => deleteTransactionApi(t.id).catch(e => console.error('Delete failed for', t.id, e))));
+
+    // Keep only fees in local state, then optionally add carry-over
+    const feeTransactions = transactions.filter(t => t.type === 'fee');
+
     if (remainingBalance > 0) {
-      const carryOverTransaction: Transaction = {
-        id: `carryover-${Date.now()}`,
-        date: formatISO(startOfMonth(new Date())),
-        description: 'Carried over from previous month',
-        category: 'Other',
-        type: 'income',
-        amount: remainingBalance
-      };
-      updatedTransactions.unshift(carryOverTransaction);
-      console.log('Added carry-over transaction:', carryOverTransaction);
+      // Persist carry-over income to backend
+      try {
+        const saved = await addTransactionApi({
+          date: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+          description: 'Carried over from previous month',
+          category: 'Other',
+          type: 'income',
+          amount: remainingBalance,
+        } as Omit<Transaction, 'id'>);
+        feeTransactions.unshift(saved);
+      } catch (e) {
+        console.error('Failed to save carry-over transaction:', e);
+      }
     }
-    
-    setTransactions(updatedTransactions);
-    
-    // Update last reset date
+
+    setTransactions(feeTransactions);
+
     const resetDate = format(new Date(), 'yyyy-MM-dd');
     setLastResetDate(resetDate);
+    localStorage.setItem('lifeos-auto-reset', JSON.stringify({ enabled: autoResetEnabled, lastDate: resetDate }));
   };
 
   const handleResetFinancials = async (isAutoReset = false) => {
-    // For manual reset, don't carry over balance
-    const updatedTransactions = transactions.filter(t => t.type === 'fee');
-    setTransactions(updatedTransactions);
-    
-    // Update last reset date
+    // For manual reset, don't carry over balance — delete all non-fee transactions from backend
+    const toDelete = transactions.filter(t => t.type !== 'fee');
+    await Promise.all(toDelete.map(t => deleteTransactionApi(t.id).catch(e => console.error('Delete failed for', t.id, e))));
+
+    setTransactions(transactions.filter(t => t.type === 'fee'));
+
     const resetDate = format(new Date(), 'yyyy-MM-dd');
     setLastResetDate(resetDate);
-    
+    localStorage.setItem('lifeos-auto-reset', JSON.stringify({ enabled: autoResetEnabled, lastDate: resetDate }));
+
     if (!isAutoReset) {
       setIsResetDialogOpen(false);
     }
   };
 
-  const handleAutoResetToggle = async () => {
+  const handleAutoResetToggle = () => {
     const newValue = !autoResetEnabled;
     setAutoResetEnabled(newValue);
+    localStorage.setItem('lifeos-auto-reset', JSON.stringify({ enabled: newValue, lastDate: lastResetDate }));
   };
 
   const renderTransactionsList = (transactionList: Transaction[]) => {
@@ -289,18 +321,13 @@ export default function ExpensesPage() {
     );
   };
 
-  if (isLoading) {
-    return (
-      <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
         <div className="flex justify-center items-center h-full">
           <Loader2 className="h-8 w-8 animate-spin text-primary" /> <p className="ml-2">Loading financial data...</p>
         </div>
-      </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
             <StatCard title="Total Income" amount={totalIncome} icon={TrendingUp} variant="income" />
@@ -463,6 +490,7 @@ export default function ExpensesPage() {
             </CardContent>
         </Card>
       </div>
+      )}
     </AppLayout>
   );
 }

@@ -7,6 +7,7 @@ import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.TodoRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +30,14 @@ import java.util.UUID;
  * - Service handles business logic (validation, transformations, multi-step operations)
  * - This separation makes code testable: you can test service logic without HTTP
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TodoService {
 
     private final TodoRepository todoRepository;
     private final UserRepository userRepository;
+    private final ActivityLogService activityLogService;
 
     // ── Helper: Convert Entity → Response DTO ──
     private TodoResponse toResponse(TodoItem todo) {
@@ -76,7 +79,7 @@ public class TodoService {
     @Transactional
     public TodoResponse createTodo(String userUid, CreateTodoRequest request) {
         User user = getUser(userUid);
-
+        log.info("Creating todo for user [{}]: '{}'", userUid, request.getText());
         TodoItem todo = TodoItem.builder()
                 .user(user)
                 .text(request.getText())
@@ -97,8 +100,10 @@ public class TodoService {
      */
     @Transactional
     public TodoResponse updateTodo(String userUid, UUID todoId, UpdateTodoRequest request) {
+        log.debug("Updating todo [{}] for user [{}]", todoId, userUid);
         TodoItem todo = todoRepository.findByIdAndUserUid(todoId, userUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Todo", "id", todoId));
+        boolean wasDone = Boolean.TRUE.equals(todo.getCompleted());
 
         // Partial update: only change fields the client sent
         if (request.getText() != null)      todo.setText(request.getText());
@@ -107,6 +112,9 @@ public class TodoService {
         if (request.getPostponed() != null) todo.setPostponed(request.getPostponed());
 
         TodoItem saved = todoRepository.save(todo);
+        if (!wasDone && Boolean.TRUE.equals(saved.getCompleted())) {
+            activityLogService.log(userUid, "todos", "completed", saved.getId(), "Completed todo: " + saved.getText());
+        }
         return toResponse(saved);
     }
 
@@ -118,6 +126,7 @@ public class TodoService {
     public void deleteTodo(String userUid, UUID todoId) {
         TodoItem todo = todoRepository.findByIdAndUserUid(todoId, userUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Todo", "id", todoId));
+        log.info("Deleting todo [{}] for user [{}]", todoId, userUid);
         todoRepository.delete(todo);
     }
 }

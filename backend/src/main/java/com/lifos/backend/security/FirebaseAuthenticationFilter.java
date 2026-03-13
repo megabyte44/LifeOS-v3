@@ -1,5 +1,6 @@
 package com.lifos.backend.security;
 
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
@@ -18,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Firebase Authentication Filter — runs on every HTTP request.
@@ -43,6 +45,7 @@ import java.util.List;
 public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
     private final UserService userService;
+    private static final AtomicBoolean firebaseMissingWarnLogged = new AtomicBoolean(false);
 
     @Override
     protected void doFilterInternal(
@@ -55,11 +58,21 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
 
         // If no Bearer token, skip — SecurityConfig handles the 401
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.debug("No Bearer token — {} {}", request.getMethod(), request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
 
         String idToken = authHeader.substring(7); // Strip "Bearer " prefix
+
+        // If Firebase is not initialized (missing service account), skip auth
+        if (FirebaseApp.getApps().isEmpty()) {
+            if (firebaseMissingWarnLogged.compareAndSet(false, true)) {
+                log.warn("Firebase not initialized — skipping token verification");
+            }
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         try {
             // Verify token with Firebase — throws if expired/invalid/revoked
@@ -85,7 +98,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             // Store in SecurityContext so controllers can retrieve it
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            log.debug("Authenticated user: {}", uid);
+            log.debug("Authenticated user [{}] {} {}", uid, request.getMethod(), request.getRequestURI());
 
         } catch (FirebaseAuthException e) {
             // Invalid/expired token — clear context and let Spring return 401

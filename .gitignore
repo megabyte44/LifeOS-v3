@@ -63,3 +63,7 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+# logs
+logs/
+*.log

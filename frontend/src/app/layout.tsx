@@ -71,14 +71,14 @@ const ThemeInitializer = () => {
   const script = `
     (function() {
       const theme = localStorage.getItem('theme');
-      // Default to dark mode if no preference is set
-      if (theme === 'dark' || !theme) {
+      // Default to light mode if no preference is set
+      if (theme === 'dark') {
         document.documentElement.classList.add('dark');
-        if (!theme) {
-          localStorage.setItem('theme', 'dark');
-        }
       } else {
         document.documentElement.classList.remove('dark');
+        if (!theme) {
+          localStorage.setItem('theme', 'light');
+        }
       }
     })();
   `;

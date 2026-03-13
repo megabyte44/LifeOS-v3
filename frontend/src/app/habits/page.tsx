@@ -563,7 +563,9 @@ export default function HabitsPage() {
     const habit = habits.find(h => h.id === habitId);
     if (!habit) return;
     const newCompletions = { ...habit.completions };
-    if (newCompletions[date]) delete newCompletions[date];
+    // Use 'in' operator so a falsy value (e.g. 0 for numeric-target habits)
+    // is still treated as "already completed" and gets deleted on toggle.
+    if (date in newCompletions) delete newCompletions[date];
     else newCompletions[date] = true;
     await updateHabitApi({ id: habitId, updates: { completions: newCompletions } });
   };
@@ -711,9 +713,9 @@ export default function HabitsPage() {
   const activeGoals = useMemo(() => goals.filter(g => !g.archived), [goals]);
 
 
-  if (isLoading) {
-    return (
-        <AppLayout>
+  return (
+    <AppLayout>
+      {isLoading ? (
             <div className="space-y-6">
                 <Skeleton className="h-24 w-full" />
                 <Skeleton className="h-64 w-full" />
@@ -722,12 +724,8 @@ export default function HabitsPage() {
                     <Skeleton className="h-80 w-full" />
                 </div>
             </div>
-        </AppLayout>
-    );
-  }
-
-  return (
-    <AppLayout>
+      ) : (
+      <>
       <div className="space-y-6">
         {/* Goals Section */}
         <Card>
@@ -2239,7 +2237,8 @@ export default function HabitsPage() {
            )}
          </DialogContent>
        </Dialog>
-
+      </>
+      )}
     </AppLayout>
   );
 }

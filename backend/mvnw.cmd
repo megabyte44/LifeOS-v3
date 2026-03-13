@@ -32,11 +32,32 @@
 @SET __MVNW_ERROR__=
 @SET __MVNW_PSMODULEP_SAVE=%PSModulePath%
 @SET PSModulePath=
-@FOR /F "usebackq tokens=1* delims==" %%A IN (`powershell -noprofile "& {$scriptDir='%~dp0'; $script='%__MVNW_ARG0_NAME__%'; icm -ScriptBlock ([Scriptblock]::Create((Get-Content -Raw '%~f0'))) -NoNewScope}"`) DO @(
+@SET __MVNW_PS_CMD__=
+@WHERE powershell >NUL 2>NUL
+@IF "%ERRORLEVEL%"=="0" (SET __MVNW_PS_CMD__=powershell)
+@IF "%__MVNW_PS_CMD__%"=="" (
+  @WHERE pwsh >NUL 2>NUL
+  @IF "%ERRORLEVEL%"=="0" (SET __MVNW_PS_CMD__=pwsh)
+)
+@IF "%__MVNW_PS_CMD__%"=="" (
+  @IF EXIST "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" (SET __MVNW_PS_CMD__=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe)
+)
+@IF "%__MVNW_PS_CMD__%"=="" (
+  @echo Neither 'powershell' nor 'pwsh' was found in PATH. >&2
+  @echo Cannot start maven from wrapper >&2
+  @SET PSModulePath=%__MVNW_PSMODULEP_SAVE%
+  @SET __MVNW_PSMODULEP_SAVE=
+  @SET __MVNW_ARG0_NAME__=
+  @SET MVNW_USERNAME=
+  @SET MVNW_PASSWORD=
+  @EXIT /b 1
+)
+@FOR /F "usebackq tokens=1* delims==" %%A IN (`%__MVNW_PS_CMD__% -noprofile "& {$scriptDir='%~dp0'; $script='%__MVNW_ARG0_NAME__%'; icm -ScriptBlock ([Scriptblock]::Create((Get-Content -Raw '%~f0'))) -NoNewScope}"`) DO @(
   IF "%%A"=="MVN_CMD" (set __MVNW_CMD__=%%B) ELSE IF "%%B"=="" (echo %%A) ELSE (echo %%A=%%B)
 )
 @SET PSModulePath=%__MVNW_PSMODULEP_SAVE%
 @SET __MVNW_PSMODULEP_SAVE=
+@SET __MVNW_PS_CMD__=
 @SET __MVNW_ARG0_NAME__=
 @SET MVNW_USERNAME=
 @SET MVNW_PASSWORD=
