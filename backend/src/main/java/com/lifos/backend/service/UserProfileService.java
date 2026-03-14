@@ -7,9 +7,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lifos.backend.dto.UpdateUserProfileRequest;
 import com.lifos.backend.dto.UserProfileDetailResponse;
 import com.lifos.backend.entity.*;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ public class UserProfileService {
     private final HabitRepository habitRepository;
     private final ConversationMemoryRepository conversationMemoryRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── CRUD ────────────────────────────────────────────────────────
 
@@ -64,7 +67,9 @@ public class UserProfileService {
         if (req.getSleepTargetHours() != null) p.setSleepTargetHours(req.getSleepTargetHours());
         if (req.getDailyCalorieTarget() != null) p.setDailyCalorieTarget(req.getDailyCalorieTarget());
         if (req.getProteinTargetOverride() != null) p.setProteinTargetOverride(req.getProteinTargetOverride());
-        return toResponse(userProfileRepository.save(p), userUid);
+        UserProfile saved = userProfileRepository.save(p);
+        publishProfileEmbedding(userUid, saved);
+        return toResponse(saved, userUid);
     }
 
     // ── Profile snapshot for AI context injection ───────────────────
@@ -203,6 +208,7 @@ public class UserProfileService {
         p.setEnrichmentSources(sources);
 
         userProfileRepository.save(p);
+        publishProfileEmbedding(userUid, p);
         log.info("Profile enriched for user={} from source={}, completeness={}%",
                 userUid, source, p.getProfileCompleteness());
     }
@@ -252,6 +258,27 @@ public class UserProfileService {
 
     private boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+    private void publishProfileEmbedding(String userUid, UserProfile p) {
+        StringBuilder sb = new StringBuilder();
+        if (!isBlank(p.getBio())) sb.append(p.getBio()).append(" ");
+        if (!isBlank(p.getPhilosophy())) sb.append(p.getPhilosophy()).append(" ");
+        if (!isBlank(p.getOccupation())) sb.append(p.getOccupation()).append(" ");
+        if (!isBlank(p.getLifeMotto())) sb.append(p.getLifeMotto()).append(" ");
+        if (!isBlank(p.getLifeSummary())) sb.append(p.getLifeSummary()).append(" ");
+        if (p.getInterests() != null && p.getInterests().isArray()) {
+            List<String> items = new ArrayList<>();
+            p.getInterests().forEach(n -> items.add(n.asText()));
+            sb.append("Interests: ").append(String.join(", ", items));
+        }
+        String text = sb.toString().trim();
+        if (!text.isEmpty()) {
+            eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                    userUid, "user_profile", p.getId(), text));
+            eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                    userUid, "user_profile", p.getId(), text));
+        }
     }
 
     private void appendIfPresent(StringBuilder sb, String label, String value) {

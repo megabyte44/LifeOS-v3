@@ -65,6 +65,13 @@ public class MemoryRetrievalLog {
     @Builder.Default
     private Integer tokenEstimate = 0;
 
+    @Column(name = "graph_score", nullable = false)
+    @Builder.Default
+    private Float graphScore = 0f;
+
+    @Column(name = "query_intent", length = 100)
+    private String queryIntent;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

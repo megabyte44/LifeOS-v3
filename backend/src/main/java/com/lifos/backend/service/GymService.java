@@ -2,9 +2,11 @@ package com.lifos.backend.service;
 
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.*;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +28,7 @@ public class GymService {
     private final CustomFoodRepository customFoodRepo;
     private final ProteinTargetRepository proteinTargetRepo;
     private final ActivityLogService activityLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── Workout Split ─────────────────────────────────────────────────────────
 
@@ -43,7 +46,13 @@ public class GymService {
                 WorkoutSplit.builder().userUid(uid).build()
         );
         row.setSplit(split);
-        return workoutSplitRepo.save(row).getSplit();
+        WorkoutSplit saved = workoutSplitRepo.save(row);
+        String splitText = flattenSplit(split);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "workout_split", saved.getId(), splitText));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "workout_split", saved.getId(), splitText));
+        return saved.getSplit();
     }
 
     // ── Cycle Config ──────────────────────────────────────────────────────────
@@ -207,5 +216,12 @@ public class GymService {
         r.setName(f.getName());
         r.setTimestamp(f.getTimestamp());
         return r;
+    }
+
+    private String flattenSplit(Map<String, Object> split) {
+        if (split == null || split.isEmpty()) return "workout split";
+        StringBuilder sb = new StringBuilder("Workout Split: ");
+        split.forEach((day, val) -> sb.append(day).append(": ").append(val).append("; "));
+        return sb.toString();
     }
 }

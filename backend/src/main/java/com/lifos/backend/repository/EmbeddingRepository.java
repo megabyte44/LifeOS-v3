@@ -27,17 +27,20 @@ public interface EmbeddingRepository extends JpaRepository<Embedding, UUID> {
 
     @Query(value = "SELECT e.id AS id, e.source_type AS sourceType, e.source_id AS sourceId, " +
                    "e.content_preview AS contentPreview, e.updated_at AS updatedAt, e.domain AS domain, " +
+                   "e.domain_tag AS domainTag, " +
                    "e.embedding_quality_score AS embeddingQualityScore, e.recency_weight AS recencyWeight, " +
                    "e.importance_signal AS importanceSignal, " +
                    "(1 - (e.embedding <=> CAST(:queryVector AS vector))) AS similarity " +
                    "FROM embeddings e " +
                    "WHERE e.user_uid = :userUid " +
                    "AND e.embedding IS NOT NULL " +
-                   "AND e.source_type IN ('note', 'goal', 'conversation_memory') " +
+                   "AND (:filterByType = false OR e.source_type = ANY(CAST(:sourceTypes AS text[]))) " +
                    "ORDER BY e.embedding <=> CAST(:queryVector AS vector) " +
                    "LIMIT :limit", nativeQuery = true)
     List<EmbeddingSearchProjection> findSimilarCandidates(@Param("userUid") String userUid,
                                                           @Param("queryVector") String queryVector,
+                                                          @Param("filterByType") boolean filterByType,
+                                                          @Param("sourceTypes") String[] sourceTypes,
                                                           @Param("limit") int limit);
 
     @Modifying
@@ -51,6 +54,7 @@ public interface EmbeddingRepository extends JpaRepository<Embedding, UUID> {
         String getContentPreview();
         Instant getUpdatedAt();
         String getDomain();
+        String getDomainTag();
         Float getEmbeddingQualityScore();
         Float getRecencyWeight();
         Float getImportanceSignal();

@@ -4,12 +4,14 @@ import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.Budget;
 import com.lifos.backend.entity.Transaction;
 import com.lifos.backend.entity.User;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.BudgetRepository;
 import com.lifos.backend.repository.TransactionRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,7 @@ public class TransactionService {
     private final BudgetRepository budgetRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)
@@ -62,6 +65,11 @@ public class TransactionService {
                 .type(req.getType())
                 .build();
         Transaction saved = transactionRepository.save(t);
+        String txText = saved.getDescription() + " [" + saved.getCategory() + "] " + saved.getAmount();
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "transaction", saved.getId(), txText));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "transaction", saved.getId(), txText));
         activityLogService.log(uid, "finance", "logged", saved.getId(),
                 req.getType() + ": " + req.getDescription() + " (" + req.getAmount() + ")");
         return toResponse(saved);
@@ -77,7 +85,13 @@ public class TransactionService {
         if (req.getCategory()    != null) t.setCategory(req.getCategory());
         if (req.getAmount()      != null) t.setAmount(req.getAmount());
         if (req.getType()        != null) t.setType(req.getType());
-        return toResponse(transactionRepository.save(t));
+        Transaction saved = transactionRepository.save(t);
+        String txText = saved.getDescription() + " [" + saved.getCategory() + "] " + saved.getAmount();
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "transaction", saved.getId(), txText));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "transaction", saved.getId(), txText));
+        return toResponse(saved);
     }
 
     @Transactional
@@ -85,6 +99,8 @@ public class TransactionService {
         Transaction t = transactionRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction", "id", id));
         log.info("Deleting transaction [{}] for user [{}]", id, uid);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "transaction", id));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "transaction", id, null));
         transactionRepository.delete(t);
     }
 

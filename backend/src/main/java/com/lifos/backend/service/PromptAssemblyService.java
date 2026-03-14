@@ -33,20 +33,21 @@ public class PromptAssemblyService {
     public String assembleContext(String userUid, String userQuery) {
         StringBuilder ctx = new StringBuilder();
 
-        // 1. User profile
+        // 1. Retrieval plan (memory + vector) — do this first to get intents
+        MemoryRetrievalStrategyService.RetrievalPlan retrievalPlan =
+                memoryRetrievalStrategyService.buildPlan(userUid, userQuery);
+
+        // 2. User profile
         String profileCtx = userProfileService.buildProfileContext(userUid);
         if (!profileCtx.isBlank()) {
             ctx.append("=== USER PROFILE ===\n").append(profileCtx).append("\n");
         }
 
-        // 2. Structured life snapshot (SQL-based)
-        String snapshot = structuredContextService.buildSnapshot(userUid);
+        // 3. Structured life snapshot (SQL-based) — filtered by query intent
+        String snapshot = structuredContextService.buildSnapshot(userUid, retrievalPlan.intents());
         if (!snapshot.isBlank()) {
             ctx.append(snapshot);
         }
-
-        MemoryRetrievalStrategyService.RetrievalPlan retrievalPlan =
-                memoryRetrievalStrategyService.buildPlan(userUid, userQuery);
 
         if (!retrievalPlan.memoryLines().isEmpty()) {
             ctx.append("=== WHAT I KNOW ABOUT YOU ===\n");
@@ -57,7 +58,7 @@ public class PromptAssemblyService {
         }
 
         if (!retrievalPlan.vectorLines().isEmpty()) {
-            ctx.append("=== RELEVANT NOTES & GOALS ===\n");
+            ctx.append("=== RELEVANT CONTEXT ===\n");
             for (String line : retrievalPlan.vectorLines()) {
                 ctx.append(line).append("\n");
             }

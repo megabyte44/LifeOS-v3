@@ -2,7 +2,7 @@ package com.lifos.backend.service;
 
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.*;
-import com.lifos.backend.event.EmbeddingTriggerEvent;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.repository.GoalRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -63,7 +63,9 @@ public class GoalService {
         applyChildren(goal, req.getProgressTrackers(), req.getSubGoals(), req.getNotes(), req.getResources());
 
         Goal saved = goalRepo.save(goal);
-        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "goal", saved.getId(), buildEmbedText(saved)));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
                 uid, "goal", saved.getId(), buildEmbedText(saved)));
         activityLogService.log(uid, "goals", "created", saved.getId(), "Created goal: " + saved.getTitle());
         return toResponse(saved);
@@ -97,7 +99,9 @@ public class GoalService {
         applyChildren(goal, req.getProgressTrackers(), req.getSubGoals(), req.getNotes(), req.getResources());
 
         Goal updated = goalRepo.save(goal);
-        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "goal", updated.getId(), buildEmbedText(updated)));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
                 uid, "goal", updated.getId(), buildEmbedText(updated)));
         if (!wasCompleted && updated.getCompletedAt() != null) {
             activityLogService.log(uid, "goals", "completed", updated.getId(), "Completed goal: " + updated.getTitle());
@@ -112,7 +116,8 @@ public class GoalService {
         Goal goal = goalRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Goal not found"));
         log.info("Deleting goal [{}] for user [{}]", id, uid);
-        eventPublisher.publishEvent(new EmbeddingTriggerEvent(uid, "goal", goal.getId(), null));
+        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "goal", goal.getId()));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "goal", goal.getId(), null));
         String goalTitle = goal.getTitle();
         goalRepo.delete(goal);
         activityLogService.log(uid, "goals", "deleted", id, "Deleted goal: " + goalTitle);

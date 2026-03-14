@@ -6,7 +6,7 @@ export const noteApiService = {
     return apiClient.get<Note[]>('/notes');
   },
 
-  async create(note: Omit<Note, 'id'>): Promise<Note> {
+  async create(note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>): Promise<Note> {
     return apiClient.post<Note>('/notes', note);
   },
 

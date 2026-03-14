@@ -71,6 +71,15 @@ ai:
     enable-hybrid-reads: ${MEMORY_HYBRID_READS:true}
     enable-dynamic-top-k: ${MEMORY_DYNAMIC_TOPK:true}
     enable-conversation-memory-embeddings: ${MEMORY_CONVO_EMBEDDINGS:true}
+    # KG-RAG flags
+    enable-universal-embedding: ${RAG_UNIVERSAL_EMBEDDING:false}
+    enable-knowledge-graph: ${RAG_KNOWLEDGE_GRAPH:false}
+    enable-edge-extraction: ${RAG_EDGE_EXTRACTION:false}
+    enable-query-intent-classification: ${RAG_QUERY_INTENT:false}
+    enable-graph-boosted-scoring: ${RAG_GRAPH_BOOST:false}
+    enabled-source-types: []
+    graph-max-hops: 2
+    graph-boost-weight: 0.15
   async:
     core-pool-size: 4
     max-pool-size: 8

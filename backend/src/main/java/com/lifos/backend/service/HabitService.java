@@ -3,11 +3,13 @@ package com.lifos.backend.service;
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.Habit;
 import com.lifos.backend.entity.User;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.HabitRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ public class HabitService {
     private final HabitRepository habitRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)
@@ -69,6 +72,11 @@ public class HabitService {
                 .context(req.getContext())
                 .build();
         Habit saved = habitRepository.save(h);
+        String habitText = saved.getName() + (saved.getContext() != null ? " [" + saved.getContext() + "]" : "");
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "habit", saved.getId(), habitText));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "habit", saved.getId(), habitText));
         activityLogService.log(uid, "habits", "created", saved.getId(), "Created habit: " + saved.getName());
         return toResponse(saved);
     }
@@ -90,6 +98,11 @@ public class HabitService {
         if (req.getSprintStartDate() != null) h.setSprintStartDate(req.getSprintStartDate());
         if (req.getContext()         != null) h.setContext(req.getContext());
         Habit saved = habitRepository.save(h);
+        String habitText = saved.getName() + (saved.getContext() != null ? " [" + saved.getContext() + "]" : "");
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "habit", saved.getId(), habitText));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "habit", saved.getId(), habitText));
         if (!wasDoneToday && isCompletedOn(saved.getCompletions(), todayStr)) {
             activityLogService.log(uid, "habits", "completed", saved.getId(), "Checked in: " + saved.getName());
         }
@@ -101,6 +114,8 @@ public class HabitService {
         Habit h = habitRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", id));
         log.info("Deleting habit [{}] for user [{}]", id, uid);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "habit", id));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "habit", id, null));
         habitRepository.delete(h);
     }
 

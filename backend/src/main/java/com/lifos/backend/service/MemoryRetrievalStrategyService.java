@@ -6,10 +6,12 @@ import com.lifos.backend.entity.Embedding;
 import com.lifos.backend.entity.MemoryRetrievalLog;
 import com.lifos.backend.entity.User;
 import com.lifos.backend.repository.ConversationMemoryRepository;
+import com.lifos.backend.repository.KnowledgeEdgeRepository;
 import com.lifos.backend.repository.MemoryRetrievalLogRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -36,12 +39,19 @@ public class MemoryRetrievalStrategyService {
     private static final int VECTOR_CANDIDATE_LIMIT = 30;
     private static final int MAX_LOGGED_CANDIDATES = 40;
     private static final int LEGACY_MEMORY_LIMIT = 50;
+    private static final int GRAPH_SEED_COUNT = 5;
 
     private final AiFoundationProperties aiFoundationProperties;
     private final ConversationMemoryRepository conversationMemoryRepository;
     private final MemoryRetrievalLogRepository memoryRetrievalLogRepository;
     private final UserRepository userRepository;
     private final EmbeddingService embeddingService;
+
+    @Autowired(required = false)
+    private KnowledgeEdgeRepository knowledgeEdgeRepository;
+
+    @Autowired(required = false)
+    private QueryIntentClassifier queryIntentClassifier;
 
     @Transactional
     public RetrievalPlan buildPlan(String userUid, String userQuery) {
@@ -72,33 +82,59 @@ public class MemoryRetrievalStrategyService {
                         EmbeddingService.EmbeddingCandidate::similarity,
                         Math::max));
 
+        boolean graphEnabled = aiFoundationProperties.getRag().isEnableGraphBoostedScoring()
+                && knowledgeEdgeRepository != null;
+
         List<Candidate> candidates = new ArrayList<>();
 
         for (ConversationMemory memory : memories) {
             double vectorScore = clamp(memoryVectorScore.getOrDefault(memory.getId(), 0.0));
-            double structuredScore = structuredScore(queryTerms, memory.getMemoryText(), memory.getDomain(), memory.getCategory());
+            double structuredScore = bm25Score(queryTerms, memory.getMemoryText(), memory.getDomain(), memory.getCategory());
             double recency = recencyScore(memory.getUpdatedAt() != null ? memory.getUpdatedAt() : memory.getCreatedAt());
             double importance = clamp(avg(memory.getRelevanceScore(), memory.getTimelinessScore()));
             double confidence = clamp(scoreOrDefault(
                 memory.getOverallConfidence() != null ? memory.getOverallConfidence() : memory.getConfidence(),
                 0.7));
             double access = accessBoost(memory.getAccessCount());
-            double score = (0.35 * vectorScore) + (0.25 * structuredScore) + (0.15 * recency)
-                    + (0.10 * importance) + (0.10 * confidence) + (0.05 * access);
+
+            double score;
+            if (graphEnabled) {
+                // With graph: vector gets 0.30 (graph takes 0.10)
+                score = (0.30 * vectorScore) + (0.20 * structuredScore) + (0.15 * recency)
+                        + (0.10 * importance) + (0.10 * confidence) + (0.05 * access);
+            } else {
+                // Without graph: vector gets full 0.35 + structuredScore gets 0.25
+                score = (0.35 * vectorScore) + (0.25 * structuredScore) + (0.15 * recency)
+                        + (0.10 * importance) + (0.10 * confidence) + (0.05 * access);
+            }
 
             candidates.add(Candidate.fromMemory(memory, score, vectorScore, structuredScore, recency, importance, confidence));
         }
 
         for (EmbeddingService.EmbeddingCandidate embedding : vectors) {
             double vectorScore = clamp(embedding.similarity());
-            double structuredScore = structuredScore(queryTerms, embedding.contentPreview(), embedding.domain(), embedding.sourceType());
+            double structuredScore = bm25Score(queryTerms, embedding.contentPreview(), embedding.domain(), embedding.sourceType());
             double recency = recencyScore(embedding.updatedAt()) * clamp(embedding.recencyWeight());
             double importance = clamp(embedding.importanceSignal());
             double confidence = clamp(embedding.qualityScore());
-            double score = (0.45 * vectorScore) + (0.20 * structuredScore) + (0.15 * recency)
-                    + (0.10 * importance) + (0.10 * confidence);
+
+            double score;
+            if (graphEnabled) {
+                // With graph: vector gets 0.35 (graph takes 0.15)
+                score = (0.35 * vectorScore) + (0.20 * structuredScore) + (0.10 * recency)
+                        + (0.10 * importance) + (0.10 * confidence);
+            } else {
+                // Without graph: vector gets full 0.45
+                score = (0.45 * vectorScore) + (0.20 * structuredScore) + (0.15 * recency)
+                        + (0.10 * importance) + (0.10 * confidence);
+            }
 
             candidates.add(Candidate.fromEmbedding(embedding, score, vectorScore, structuredScore, recency, importance, confidence));
+        }
+
+        // Graph boost pass: take top seeds, traverse graph, boost connected candidates
+        if (graphEnabled) {
+            candidates = applyGraphBoost(userUid, candidates);
         }
 
         candidates.sort(Comparator.comparingDouble(Candidate::score).reversed());
@@ -137,7 +173,18 @@ public class MemoryRetrievalStrategyService {
             }
         }
 
-        persistObservability(userUid, userQuery, candidates, selected);
+        // Classify intent for observability and selective context
+        Set<QueryIntentClassifier.Intent> intents = Set.of(QueryIntentClassifier.Intent.GENERAL);
+        if (aiFoundationProperties.getRag().isEnableQueryIntentClassification()
+                && queryIntentClassifier != null) {
+            intents = queryIntentClassifier.classify(userQuery);
+        }
+        String intentStr = intents.stream()
+                .map(Enum::name)
+                .sorted()
+                .collect(Collectors.joining(","));
+
+        persistObservability(userUid, userQuery, candidates, selected, intentStr);
 
         List<String> memoryLines = selected.stream()
                 .filter(c -> c.kind() == CandidateKind.MEMORY)
@@ -149,7 +196,7 @@ public class MemoryRetrievalStrategyService {
                 .map(c -> "- [" + c.sourceType() + "] " + c.text())
                 .toList();
 
-        return new RetrievalPlan(memoryLines, vectorLines, usedTokens, selected.size(), budget);
+        return new RetrievalPlan(memoryLines, vectorLines, usedTokens, selected.size(), budget, intents);
     }
 
     private RetrievalPlan buildLegacyPlan(String userUid, String userQuery) {
@@ -181,13 +228,15 @@ public class MemoryRetrievalStrategyService {
         int tokenBudget = legacyTokenBudget();
         int selectedCount = memoryLines.size() + vectorLines.size();
 
-        return new RetrievalPlan(memoryLines, vectorLines, usedTokens, selectedCount, tokenBudget);
+        return new RetrievalPlan(memoryLines, vectorLines, usedTokens, selectedCount, tokenBudget,
+                Set.of(QueryIntentClassifier.Intent.GENERAL));
     }
 
     private void persistObservability(String userUid,
                                       String query,
                                       List<Candidate> ranked,
-                                      List<Candidate> selected) {
+                                      List<Candidate> selected,
+                                      String queryIntent) {
         if (ranked.isEmpty()) {
             return;
         }
@@ -225,6 +274,8 @@ public class MemoryRetrievalStrategyService {
                         .recencyScore((float) c.recencyScore())
                         .importanceScore((float) c.importanceScore())
                         .confidenceScore((float) c.confidenceScore())
+                        .graphScore((float) c.graphScore())
+                        .queryIntent(queryIntent)
                         .selected(selected.contains(c))
                         .tokenEstimate(c.tokenEstimate())
                         .createdAt(now)
@@ -264,7 +315,12 @@ public class MemoryRetrievalStrategyService {
         return Math.max(8, Math.min(24, chunkCount * 2));
     }
 
-    private double structuredScore(Set<String> queryTerms, String text, String domain, String category) {
+    /**
+     * BM25-lite scoring — replaces naive keyword overlap with term-frequency-aware scoring.
+     * Uses BM25 formula: tf*(k1+1) / (tf + k1*(1 - b + b*(docLen/avgDocLen)))
+     * Normalized to 0-1 range.
+     */
+    private double bm25Score(Set<String> queryTerms, String text, String domain, String category) {
         if (queryTerms.isEmpty()) {
             return 0.2;
         }
@@ -273,8 +329,38 @@ public class MemoryRetrievalStrategyService {
                 + (domain == null ? "" : domain) + " "
                 + (category == null ? "" : category)).toLowerCase(Locale.ROOT);
 
-        long matched = queryTerms.stream().filter(combined::contains).count();
-        return clamp((double) matched / queryTerms.size());
+        String[] docTokens = combined.split("[^a-z0-9]+");
+        int docLen = docTokens.length;
+        if (docLen == 0) {
+            return 0.0;
+        }
+
+        Map<String, Integer> termFreqs = new HashMap<>();
+        for (String token : docTokens) {
+            if (token.length() > 2) {
+                termFreqs.merge(token, 1, Integer::sum);
+            }
+        }
+
+        double k1 = 1.2;
+        double b = 0.75;
+        double avgDocLen = 50.0;
+        double rawScore = 0.0;
+
+        for (String term : queryTerms) {
+            int tf = 0;
+            for (var entry : termFreqs.entrySet()) {
+                if (entry.getKey().contains(term) || term.contains(entry.getKey())) {
+                    tf += entry.getValue();
+                }
+            }
+            if (tf > 0) {
+                rawScore += (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (docLen / avgDocLen)));
+            }
+        }
+
+        double maxPossible = queryTerms.size() * ((k1 + 1) / 1.0);
+        return clamp(rawScore / maxPossible);
     }
 
     private double recencyScore(Instant timestamp) {
@@ -290,6 +376,84 @@ public class MemoryRetrievalStrategyService {
             return 0;
         }
         return Math.min(1.0, Math.log1p(accessCount) / 3.0);
+    }
+
+    /**
+     * Graph boost pass: uses top-N candidates as seed nodes, walks the knowledge graph,
+     * and boosts candidates connected to seeds by graph proximity.
+     * Score decay: 0.5^depth * confidence.
+     */
+    private List<Candidate> applyGraphBoost(String userUid, List<Candidate> candidates) {
+        // Sort by pre-graph score to pick seeds
+        candidates.sort(Comparator.comparingDouble(Candidate::score).reversed());
+
+        List<Candidate> seeds = candidates.stream()
+                .limit(GRAPH_SEED_COUNT)
+                .toList();
+
+        List<String> seedTypes = new ArrayList<>();
+        List<UUID> seedIds = new ArrayList<>();
+        for (Candidate seed : seeds) {
+            if (seed.memoryId() != null) {
+                seedTypes.add("conversation_memory");
+                seedIds.add(seed.memoryId());
+            }
+            if (seed.embeddingId() != null) {
+                seedTypes.add(seed.sourceType());
+                seedIds.add(seed.embeddingId());
+            }
+        }
+
+        if (seedTypes.isEmpty()) {
+            return candidates;
+        }
+
+        int maxHops = aiFoundationProperties.getRag().getGraphMaxHops();
+        float graphWeight = aiFoundationProperties.getRag().getGraphBoostWeight();
+
+        Map<String, Double> graphScores;
+        try {
+            List<KnowledgeEdgeRepository.GraphNeighborProjection> neighbors =
+                    knowledgeEdgeRepository.walkGraph(
+                            userUid,
+                            seedTypes.toArray(String[]::new),
+                            seedIds.toArray(UUID[]::new),
+                            maxHops,
+                            50);
+
+            graphScores = new HashMap<>();
+            for (var neighbor : neighbors) {
+                String key = neighbor.getNodeType() + ":" + neighbor.getNodeId();
+                double decayedScore = Math.pow(0.5, neighbor.getMinDepth())
+                        * (neighbor.getMaxConfidence() != null ? neighbor.getMaxConfidence() : 0.5);
+                graphScores.merge(key, decayedScore, Math::max);
+            }
+        } catch (Exception ex) {
+            log.warn("Graph traversal failed for user {}: {}", userUid, ex.getMessage());
+            return candidates;
+        }
+
+        List<Candidate> boosted = new ArrayList<>(candidates.size());
+        for (Candidate c : candidates) {
+            String key = null;
+            if (c.memoryId() != null) {
+                key = "conversation_memory:" + c.memoryId();
+            } else if (c.embeddingId() != null) {
+                key = c.sourceType() + ":" + c.embeddingId();
+            }
+
+            double gs = (key != null) ? graphScores.getOrDefault(key, 0.0) : 0.0;
+            if (gs > 0) {
+                double boost = (c.kind() == CandidateKind.MEMORY)
+                        ? graphWeight * clamp(gs)       // memory: 0.10 * graph
+                        : (graphWeight + 0.05) * clamp(gs); // embedding: 0.15 * graph
+                boosted.add(c.withGraphBoost(clamp(gs), c.score() + boost));
+            } else {
+                boosted.add(c);
+            }
+        }
+
+        return boosted;
     }
 
     private Set<String> tokenize(String query) {
@@ -340,7 +504,8 @@ public class MemoryRetrievalStrategyService {
             double structuredScore,
             double recencyScore,
             double importanceScore,
-            double confidenceScore
+            double confidenceScore,
+            double graphScore
     ) {
         static Candidate fromMemory(ConversationMemory memory,
                                     double score,
@@ -365,7 +530,8 @@ public class MemoryRetrievalStrategyService {
                     structuredScore,
                     recencyScore,
                     importanceScore,
-                    confidenceScore
+                    confidenceScore,
+                    0.0
             );
         }
 
@@ -393,8 +559,15 @@ public class MemoryRetrievalStrategyService {
                     structuredScore,
                     recencyScore,
                     importanceScore,
-                    confidenceScore
+                    confidenceScore,
+                    0.0
             );
+        }
+
+        Candidate withGraphBoost(double graphScore, double newTotalScore) {
+            return new Candidate(kind, memoryId, embeddingId, sourceType, domain, text,
+                    tokenEstimate, newTotalScore, vectorScore, structuredScore, recencyScore,
+                    importanceScore, confidenceScore, graphScore);
         }
     }
 
@@ -403,10 +576,11 @@ public class MemoryRetrievalStrategyService {
             List<String> vectorLines,
             int usedTokens,
             int selectedCount,
-            int tokenBudget
+            int tokenBudget,
+            Set<QueryIntentClassifier.Intent> intents
     ) {
         static RetrievalPlan empty() {
-            return new RetrievalPlan(List.of(), List.of(), 0, 0, 0);
+            return new RetrievalPlan(List.of(), List.of(), 0, 0, 0, Set.of(QueryIntentClassifier.Intent.GENERAL));
         }
 
         public boolean isEmpty() {
