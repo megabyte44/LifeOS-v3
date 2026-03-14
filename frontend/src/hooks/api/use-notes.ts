@@ -17,7 +17,7 @@ export function useNotes() {
   });
 
   const addNote = useMutation({
-    mutationFn: (note: Omit<Note, 'id'>) => noteService.create(note),
+    mutationFn: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => noteService.create(note),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
   });
 

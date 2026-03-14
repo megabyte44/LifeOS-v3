@@ -55,7 +55,7 @@ export function QuickCapture() {
         await addTodo({ text: value.trim(), completed: false, priority: 'medium' });
         toast({ title: 'Todo added' });
       } else if (mode === 'note') {
-        await addNote({ title: value.trim(), content: '', type: 'text', createdAt: new Date().toISOString() });
+        await addNote({ title: value.trim(), content: '', type: 'text' });
         toast({ title: 'Note created' });
       } else if (mode === 'expense') {
         const cents = Math.round(parseFloat(amount) * 100);

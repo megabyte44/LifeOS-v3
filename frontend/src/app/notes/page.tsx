@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Search, LayoutGrid, List, Trash2, X, Save, Edit, Loader2, Copy, ArrowUpDown, Code2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { format, formatISO, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -293,7 +293,7 @@ function ViewNoteDialogOLD({ note, isOpen, onOpenChange, onEdit, onCopy }: { not
     )
 }
 
-function NewNoteCard({ onSave, onCancel }: { onSave: (note: Omit<Note, 'id' | 'createdAt'>) => void; onCancel: () => void; }) {
+function NewNoteCard({ onSave, onCancel }: { onSave: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => void; onCancel: () => void; }) {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<'text' | 'checklist' | 'markdown' | 'snippet'>('text');
   const [textContent, setTextContent] = useState('');
@@ -711,8 +711,8 @@ export default function NotesPage() {
   // Data loaded via useNotes hook
 
 
-  const handleSaveNote = async (newNoteData: Omit<Note, 'id' | 'createdAt'>) => {
-    try { await addNoteApi({ ...newNoteData, createdAt: formatISO(new Date()) } as Omit<Note, 'id'>); }
+  const handleSaveNote = async (newNoteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try { await addNoteApi(newNoteData); }
     catch (e) { console.error(e); }
     setIsAddingNote(false);
   };
