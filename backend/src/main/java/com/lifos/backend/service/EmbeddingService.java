@@ -1,5 +1,6 @@
 package com.lifos.backend.service;
 
+import com.lifos.backend.config.AiFoundationProperties;
 import com.lifos.backend.entity.Embedding;
 import com.lifos.backend.entity.User;
 import com.lifos.backend.repository.EmbeddingRepository;
@@ -27,10 +28,13 @@ public class EmbeddingService {
     private final EmbeddingRepository embeddingRepository;
     private final UserRepository userRepository;
     private final OpenAiEmbeddingClient openAiEmbeddingClient;
+    private final AiFoundationProperties aiFoundationProperties;
 
     @Transactional
     public void embedAndStore(String userUid, String sourceType, UUID sourceId, String text) {
-        embedAndStore(userUid, sourceType, sourceId, text, null, 0.7f, 0.5f, 0.5f);
+        EmbeddingTextBuilder.EmbeddingMeta meta = EmbeddingTextBuilder.metaFor(sourceType);
+        embedAndStore(userUid, sourceType, sourceId, text,
+                meta.domain(), meta.domainTag(), meta.quality(), meta.recency(), meta.importance());
     }
 
     @Transactional
@@ -39,6 +43,7 @@ public class EmbeddingService {
                               UUID sourceId,
                               String text,
                               String domain,
+                              String domainTag,
                               float qualityScore,
                               float recencyWeight,
                               float importanceSignal) {
@@ -68,6 +73,7 @@ public class EmbeddingService {
         embedding.setContentHash(contentHash);
         embedding.setContentPreview(text.substring(0, Math.min(text.length(), 200)));
         embedding.setDomain(domain);
+        embedding.setDomainTag(domainTag);
         embedding.setEmbeddingQualityScore(clamp(qualityScore));
         embedding.setRecencyWeight(clamp(recencyWeight));
         embedding.setImportanceSignal(clamp(importanceSignal));
@@ -91,7 +97,12 @@ public class EmbeddingService {
 
     public List<EmbeddingCandidate> searchCandidates(String userUid, String queryText, int limit) {
         float[] queryVector = openAiEmbeddingClient.getEmbedding(queryText);
-        return embeddingRepository.findSimilarCandidates(userUid, toVectorString(queryVector), limit)
+        List<String> enabledTypes = aiFoundationProperties.getRag().getEnabledSourceTypes();
+        boolean filterByType = enabledTypes != null && !enabledTypes.isEmpty();
+        String[] sourceTypes = filterByType ? enabledTypes.toArray(String[]::new) : new String[0];
+
+        return embeddingRepository.findSimilarCandidates(
+                        userUid, toVectorString(queryVector), filterByType, sourceTypes, limit)
                 .stream()
                 .map(p -> new EmbeddingCandidate(
                         p.getId(),

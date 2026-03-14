@@ -3,10 +3,12 @@ package com.lifos.backend.service;
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.PlannerItem;
 import com.lifos.backend.entity.User;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.repository.PlannerItemRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ public class PlannerService {
 
     private final PlannerItemRepository plannerRepo;
     private final UserRepository userRepo;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── GET /api/planner ──────────────────────────────────────────────────────
 
@@ -76,7 +79,12 @@ public class PlannerService {
                 .title(req.getTitle())
                 .tag(req.getTag())
                 .build();
-        return toResponse(plannerRepo.save(item));
+        PlannerItem saved = plannerRepo.save(item);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "planner_item", saved.getId(), buildPlannerText(saved)));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "planner_item", saved.getId(), buildPlannerText(saved)));
+        return toResponse(saved);
     }
 
     // ── PUT /api/planner/{day}/items/{id} ─────────────────────────────────────
@@ -93,7 +101,12 @@ public class PlannerService {
         if (req.getTitle() != null) item.setTitle(req.getTitle());
         if (req.getTag() != null) item.setTag(req.getTag());
 
-        return toResponse(plannerRepo.save(item));
+        PlannerItem saved = plannerRepo.save(item);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "planner_item", saved.getId(), buildPlannerText(saved)));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                uid, "planner_item", saved.getId(), buildPlannerText(saved)));
+        return toResponse(saved);
     }
 
     // ── DELETE /api/planner/{day}/items/{id} ──────────────────────────────────
@@ -103,6 +116,8 @@ public class PlannerService {
         PlannerItem item = plannerRepo.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Planner item not found"));
         log.info("Deleting planner item [{}] '{}' on day '{}' for user [{}]", id, item.getTitle(), day, uid);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "planner_item", id));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "planner_item", id, null));
         plannerRepo.delete(item);
     }
 
@@ -122,5 +137,10 @@ public class PlannerService {
         r.setTitle(item.getTitle());
         r.setTag(item.getTag());
         return r;
+    }
+
+    private String buildPlannerText(PlannerItem item) {
+        return item.getTitle() + " " + item.getDay() + " " + item.getStartTime() + "-" + item.getEndTime()
+                + (item.getTag() != null ? " [" + item.getTag() + "]" : "");
     }
 }

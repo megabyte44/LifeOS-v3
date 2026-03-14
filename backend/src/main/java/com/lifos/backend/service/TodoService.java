@@ -3,11 +3,13 @@ package com.lifos.backend.service;
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.TodoItem;
 import com.lifos.backend.entity.User;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.TodoRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,7 @@ public class TodoService {
     private final TodoRepository todoRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── Helper: Convert Entity → Response DTO ──
     private TodoResponse toResponse(TodoItem todo) {
@@ -89,11 +92,15 @@ public class TodoService {
                 .build();
 
         TodoItem saved = todoRepository.save(todo);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                userUid, "todo", saved.getId(), saved.getText()));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                userUid, "todo", saved.getId(), saved.getText()));
         return toResponse(saved);
     }
 
     /**
-     * UPDATE an existing todo.
+     * UPDATE a todo (partial update).
      * 1. Find the todo by ID AND user (security: prevents accessing other users' data)
      * 2. Only update fields that are non-null in the request (partial update)
      * 3. Save and return
@@ -112,6 +119,10 @@ public class TodoService {
         if (request.getPostponed() != null) todo.setPostponed(request.getPostponed());
 
         TodoItem saved = todoRepository.save(todo);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                userUid, "todo", saved.getId(), saved.getText()));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                userUid, "todo", saved.getId(), saved.getText()));
         if (!wasDone && Boolean.TRUE.equals(saved.getCompleted())) {
             activityLogService.log(userUid, "todos", "completed", saved.getId(), "Completed todo: " + saved.getText());
         }
@@ -127,6 +138,8 @@ public class TodoService {
         TodoItem todo = todoRepository.findByIdAndUserUid(todoId, userUid)
                 .orElseThrow(() -> new ResourceNotFoundException("Todo", "id", todoId));
         log.info("Deleting todo [{}] for user [{}]", todoId, userUid);
+        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(userUid, "todo", todoId));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(userUid, "todo", todoId, null));
         todoRepository.delete(todo);
     }
 }

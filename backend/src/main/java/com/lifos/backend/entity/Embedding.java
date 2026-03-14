@@ -38,6 +38,9 @@ public class Embedding {
 
     private String domain;
 
+    @Column(name = "domain_tag", length = 50)
+    private String domainTag;
+
     @Column(name = "embedding_quality_score")
     @Builder.Default
     private Float embeddingQualityScore = 0.7f;

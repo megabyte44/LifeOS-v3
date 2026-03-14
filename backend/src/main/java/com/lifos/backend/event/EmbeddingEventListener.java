@@ -29,7 +29,16 @@ public class EmbeddingEventListener {
                 log.debug("Deleted embedding for {} {}", event.sourceType(), event.sourceId());
             } else {
                 embeddingService.embedAndStore(
-                        event.userUid(), event.sourceType(), event.sourceId(), event.text());
+                        event.userUid(),
+                        event.sourceType(),
+                        event.sourceId(),
+                        event.text(),
+                        event.domain(),
+                        event.domainTag(),
+                        event.qualityScore(),
+                        event.recencyWeight(),
+                        event.importanceSignal()
+                );
             }
         } catch (Exception ex) {
             // Embedding failures are non-critical — log and continue

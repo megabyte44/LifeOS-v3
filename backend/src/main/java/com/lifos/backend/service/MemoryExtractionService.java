@@ -167,6 +167,7 @@ public class MemoryExtractionService {
                         saved.getId(),
                         saved.getMemoryText(),
                         domain,
+                        "conversation_memory",
                         clamp(saved.getOverallConfidence()),
                         0.8f,
                         0.7f

@@ -1,6 +1,7 @@
 package com.lifos.backend.config;
 
 import java.time.Duration;
+import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -59,6 +60,24 @@ public class AiFoundationProperties {
         private boolean enableDynamicTopK = true;
         /** Runtime flag: embed extracted conversation memories. */
         private boolean enableConversationMemoryEmbeddings = true;
+
+        // ── KG-RAG feature flags ────────────────────────────────────────
+        /** Embed all entity types (todo, habit, transaction, etc.), not just note/goal/memory. */
+        private boolean enableUniversalEmbedding = false;
+        /** Use knowledge graph edges during retrieval scoring. */
+        private boolean enableKnowledgeGraph = false;
+        /** Extract knowledge graph edges on entity save via LLM. */
+        private boolean enableEdgeExtraction = false;
+        /** Classify query intent to selectively inject structured context. */
+        private boolean enableQueryIntentClassification = false;
+        /** Use graph-boosted scoring in hybrid retrieval. */
+        private boolean enableGraphBoostedScoring = false;
+        /** Source types to include in vector search (empty = search all). */
+        private List<String> enabledSourceTypes = List.of();
+        /** Max graph hops during retrieval traversal. */
+        private int graphMaxHops = 2;
+        /** Weight of graph boost signal in hybrid scoring. */
+        private float graphBoostWeight = 0.15f;
     }
 
     @Getter

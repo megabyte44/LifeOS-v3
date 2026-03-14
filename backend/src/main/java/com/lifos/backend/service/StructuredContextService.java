@@ -43,14 +43,36 @@ public class StructuredContextService {
      * Builds a structured snapshot of the user's current state for AI context.
      */
     public String buildSnapshot(String userUid) {
+        return buildSnapshot(userUid, Set.of(QueryIntentClassifier.Intent.GENERAL));
+    }
+
+    /**
+     * Intent-selective snapshot: only inject structured sections matching detected intents.
+     * GENERAL intent injects all sections (backward compatible).
+     */
+    public String buildSnapshot(String userUid, Set<QueryIntentClassifier.Intent> intents) {
         StringBuilder sb = new StringBuilder();
 
-        appendHabitsSnapshot(sb, userUid);
-        appendGoalsSnapshot(sb, userUid);
-        appendGymSnapshot(sb, userUid);
-        appendFinanceSnapshot(sb, userUid);
-        appendScheduleSnapshot(sb, userUid);
-        appendRecentActivity(sb, userUid);
+        boolean all = intents.contains(QueryIntentClassifier.Intent.GENERAL);
+
+        if (all || intents.contains(QueryIntentClassifier.Intent.HABITS)) {
+            appendHabitsSnapshot(sb, userUid);
+        }
+        if (all || intents.contains(QueryIntentClassifier.Intent.GOALS)) {
+            appendGoalsSnapshot(sb, userUid);
+        }
+        if (all || intents.contains(QueryIntentClassifier.Intent.GYM)) {
+            appendGymSnapshot(sb, userUid);
+        }
+        if (all || intents.contains(QueryIntentClassifier.Intent.FINANCE)) {
+            appendFinanceSnapshot(sb, userUid);
+        }
+        if (all || intents.contains(QueryIntentClassifier.Intent.SCHEDULE)) {
+            appendScheduleSnapshot(sb, userUid);
+        }
+        if (all) {
+            appendRecentActivity(sb, userUid);
+        }
 
         return sb.toString();
     }

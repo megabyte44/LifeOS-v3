@@ -3,7 +3,7 @@ package com.lifos.backend.service;
 import com.lifos.backend.dto.*;
 import com.lifos.backend.entity.Note;
 import com.lifos.backend.entity.User;
-import com.lifos.backend.event.EmbeddingTriggerEvent;
+import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
 import com.lifos.backend.exception.ResourceNotFoundException;
 import com.lifos.backend.repository.NoteRepository;
 import com.lifos.backend.repository.UserRepository;
@@ -58,7 +58,9 @@ public class NoteService {
                 .type(req.getType())
                 .build();
         Note saved = noteRepository.save(n);
-        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "note", saved.getId(), buildEmbedText(saved)));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
                 uid, "note", saved.getId(), buildEmbedText(saved)));
         activityLogService.log(uid, "notes", "created", saved.getId(), "Created note: " + saved.getTitle());
         return toResponse(saved);
@@ -73,7 +75,9 @@ public class NoteService {
         if (req.getContent() != null) n.setContent(req.getContent());
         if (req.getType()    != null) n.setType(req.getType());
         Note saved = noteRepository.save(n);
-        eventPublisher.publishEvent(new EmbeddingTriggerEvent(
+        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                uid, "note", saved.getId(), buildEmbedText(saved)));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
                 uid, "note", saved.getId(), buildEmbedText(saved)));
         return toResponse(saved);
     }
@@ -83,7 +87,8 @@ public class NoteService {
         Note n = noteRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Note", "id", id));
         log.info("Deleting note [{}] for user [{}]", id, uid);
-        eventPublisher.publishEvent(new EmbeddingTriggerEvent(uid, "note", n.getId(), null));
+        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "note", n.getId()));
+        eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "note", n.getId(), null));
         noteRepository.delete(n);
     }
 
