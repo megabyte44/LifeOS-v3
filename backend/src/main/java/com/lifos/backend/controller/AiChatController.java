@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/ai")
+@RequestMapping({"/ai", "/api/ai"})
 @RequiredArgsConstructor
 public class AiChatController {
 
