@@ -1,18 +1,10 @@
 package com.lifos.backend.service;
 
-import com.lifos.backend.dto.AiChatRequest;
-import com.lifos.backend.entity.ConversationMemory;
-import com.lifos.backend.entity.Embedding;
-import com.lifos.backend.repository.ConversationMemoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Assembles the full prompt for AI chat by stitching together:
@@ -30,8 +22,7 @@ public class PromptAssemblyService {
 
     private final UserProfileService userProfileService;
     private final StructuredContextService structuredContextService;
-    private final ConversationMemoryRepository conversationMemoryRepository;
-    private final EmbeddingService embeddingService;
+    private final MemoryRetrievalStrategyService memoryRetrievalStrategyService;
 
     /**
      * Builds the full context block that gets prepended to the system prompt.
@@ -54,41 +45,28 @@ public class PromptAssemblyService {
             ctx.append(snapshot);
         }
 
-        // 3. Active conversation memories — grouped by category for clarity
-        List<ConversationMemory> memories = conversationMemoryRepository
-                .findByUserUidAndActiveTrueOrderByCreatedAtDesc(userUid, PageRequest.of(0, 50));
-        if (!memories.isEmpty()) {
+        MemoryRetrievalStrategyService.RetrievalPlan retrievalPlan =
+                memoryRetrievalStrategyService.buildPlan(userUid, userQuery);
+
+        if (!retrievalPlan.memoryLines().isEmpty()) {
             ctx.append("=== WHAT I KNOW ABOUT YOU ===\n");
-            // Preserve insertion order so category blocks are stable
-            Map<String, List<ConversationMemory>> byCategory = memories.stream()
-                    .collect(Collectors.groupingBy(
-                            m -> m.getCategory() != null ? m.getCategory() : "context",
-                            LinkedHashMap::new,
-                            Collectors.toList()));
-            for (Map.Entry<String, List<ConversationMemory>> entry : byCategory.entrySet()) {
-                ctx.append("[").append(entry.getKey()).append("]");
-                for (ConversationMemory m : entry.getValue()) {
-                    ctx.append("  - ").append(m.getMemoryText()).append("\n");
-                }
+            for (String line : retrievalPlan.memoryLines()) {
+                ctx.append(line).append("\n");
             }
             ctx.append("\n");
         }
 
-        // 4. Vector search — semantically similar notes & goals for the current query
-        if (userQuery != null && !userQuery.isBlank()) {
-            try {
-                List<Embedding> similar = embeddingService.searchSimilar(userUid, userQuery, 5);
-                if (!similar.isEmpty()) {
-                    ctx.append("=== RELEVANT NOTES & GOALS ===\n");
-                    for (Embedding e : similar) {
-                        ctx.append("- [").append(e.getSourceType()).append("] ")
-                           .append(e.getContentPreview()).append("\n");
-                    }
-                    ctx.append("\n");
-                }
-            } catch (Exception ex) {
-                log.warn("Vector search failed for user {}: {}", userUid, ex.getMessage());
+        if (!retrievalPlan.vectorLines().isEmpty()) {
+            ctx.append("=== RELEVANT NOTES & GOALS ===\n");
+            for (String line : retrievalPlan.vectorLines()) {
+                ctx.append(line).append("\n");
             }
+            ctx.append("\n");
+        }
+
+        if (!retrievalPlan.isEmpty()) {
+            log.debug("Context retrieval selected {} candidates using {} / {} tokens",
+                    retrievalPlan.selectedCount(), retrievalPlan.usedTokens(), retrievalPlan.tokenBudget());
         }
 
         return ctx.toString();

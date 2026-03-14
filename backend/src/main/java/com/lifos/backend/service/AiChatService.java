@@ -34,6 +34,7 @@ public class AiChatService {
     private final UserProfileService userProfileService;
     private final PromptAssemblyService promptAssemblyService;
     private final MemoryExtractionService memoryExtractionService;
+    private final AiChatHistoryService aiChatHistoryService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
     private final WebClient webClient;
@@ -65,13 +66,20 @@ public class AiChatService {
                     temperature, maxTokens, topP, provider);
         };
 
+        if (response != null) {
+            String lastUserMsg = extractLatestUserMessage(req);
+            aiChatHistoryService.saveExchange(
+                    userUid,
+                    req,
+                    provider,
+                    response.getModel(),
+                    lastUserMsg,
+                    response.getResult());
+        }
+
         // Async memory extraction — only in chat_buddy mode, never blocks the response
         if ("chat_buddy".equals(mode) && response != null) {
-            String lastUserMsg = req.getMessages() == null ? "" : req.getMessages().stream()
-                    .filter(m -> "user".equals(m.getRole()))
-                    .reduce((a, b) -> b)
-                    .map(AiChatRequest.AiMessage::getContent)
-                    .orElse("");
+            String lastUserMsg = extractLatestUserMessage(req);
             if (!lastUserMsg.isBlank()) {
                 memoryExtractionService.extractAndStore(userUid, lastUserMsg, response.getResult());
             }
@@ -330,6 +338,14 @@ public class AiChatService {
                 } catch (IOException e) {
                     emitter.completeWithError(e);
                 }
+                String full = fullResponse != null ? fullResponse.toString() : "";
+                aiChatHistoryService.saveExchange(
+                        userUid,
+                        req,
+                        provider,
+                        model,
+                        lastUserMsg,
+                        full);
                 // Trigger async memory extraction after stream completes
                 if (extractMemory && fullResponse != null && !lastUserMsg.isBlank()) {
                     memoryExtractionService.extractAndStore(
@@ -458,6 +474,17 @@ public class AiChatService {
     private double toDouble(Object v) {
         if (v instanceof Number n) return n.doubleValue();
         try { return Double.parseDouble(v.toString()); } catch (Exception e) { return 0.7; }
+    }
+
+    private String extractLatestUserMessage(AiChatRequest req) {
+        if (req == null || req.getMessages() == null) {
+            return "";
+        }
+        return req.getMessages().stream()
+                .filter(m -> "user".equals(m.getRole()))
+                .reduce((a, b) -> b)
+                .map(AiChatRequest.AiMessage::getContent)
+                .orElse("");
     }
 
     private int toInt(Object v) {

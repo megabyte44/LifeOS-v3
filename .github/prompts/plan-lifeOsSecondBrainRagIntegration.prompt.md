@@ -10,49 +10,86 @@ Transform the existing AI chat proxy into a context-aware **"Second Brain"** usi
 
 ---
 
-## Current Build State
+## Current Build State (Authoritative)
 
-### ✅ Done — Infrastructure & Scaffolding
+### ✅ Completed Through Checkpoint 6
 
-All database migrations exist and are applied:
-- V15_1: pgvector extension enabled
-- V16: `user_profiles` table
-- V17: `embeddings` table (vector(1536) + IVFFlat index)
-- V18: `activity_log` table
-- V19: note tags fields
-- V21: `conversation_memories` table
-- V22: AI config RAG columns
-- V23: `rag_evaluations` + `rag_test_cases` tables
+From `docs/AI_CHECKPOINTS.md`, the implemented checkpoints are:
+- Checkpoint 0: Plain AI chat
+- Checkpoint 1: Streaming SSE
+- Checkpoint 2: Profile context + chat modes
+- Checkpoint 3: Structured SQL snapshot context
+- Checkpoint 4: Vector search for notes/goals
+- Checkpoint 5: Conversation memory extraction and memory viewer
+- Checkpoint 6: Activity intelligence integration
 
-All JPA entities exist: `UserProfile`, `Embedding`, `ActivityLog`, `ConversationMemory`, `RagEvaluation`, `RagTestCase`
+### ⬜ Pending
+- Checkpoint 7: Proactive insights
+- Checkpoint 8: RAG evaluation completion and dashboarding
 
-All Spring Data repositories exist for every entity above.
+## Approved Execution Plan — Memory-First RAG Upgrade (March 14, 2026)
 
-Services partially scaffolded: `EmbeddingService.java`, `OpenAiEmbeddingClient.java`, `ActivityLogService.java`
+This is the implementation plan to execute next. It preserves checkpoint order while upgrading memory quality for long-term recall.
 
-**Checkpoint 0 (Plain AI Chat) — COMPLETE.**
-- `AiChatController` → `POST /api/ai/chat` works end-to-end.
-- Multi-provider support (OpenRouter, OpenAI, Gemini) via `AiConfigurationResolver`.
-- Personality-based system prompts from `AiConfiguration.systemInstructions`.
+### Non-Negotiable Requirements
+1. Stop category replacement and move to versioned facts.
+2. Embed conversation memories.
+3. Use hybrid ranking: structured + vector + recency + importance.
+4. Replace fixed top-k with dynamic top-k/token budgeting.
 
-### ❌ Not Yet Built — Active Work Queue
+### Phase A — In-Place Schema Upgrade (Direct Replacement Strategy)
+1. Alter `conversation_memories` in place with fields for versioning/quality/lifecycle:
+  - `memory_hash`, `domain`, `factuality_score`, `relevance_score`, `timeliness_score`, `overall_confidence`
+  - `last_verified_at`, `verification_status`, `extraction_model`, `extraction_confidence`
+  - `parent_memory_id`, `archived_at`, `access_count`, `last_accessed_at`, `updated_at`
+2. Add `memory_relationships` table to model contradictions/supersessions/refinements.
+3. Add `memory_retrieval_log` table for ranking observability and offline analysis.
+4. Alter `embeddings` in place with retrieval metadata:
+  - `domain`, `embedding_quality_score`, `recency_weight`, `importance_signal`, `last_used_in_context`
 
-The following are missing and must be built in checkpoint order:
+### Phase B — Backfill + Safer Memory Semantics
+1. Backfill `memory_hash` and default scores for existing memories.
+2. Run exact dedup pass per user by hash.
+3. Refactor extraction logic in `MemoryExtractionService`:
+  - Remove category-wide deactivation.
+  - Upsert/supersede at fact level only.
+  - Keep historical lineage via relationships.
 
-| Checkpoint | What's missing |
-|---|---|
-| **1 — Streaming** | `POST /api/ai/chat/stream` SSE endpoint; frontend SSE consumer |
-| **2 — Profile Context** | ✅ DONE — `UserProfileService`, `UserProfileController`, two AI modes (`normal` / `chat_buddy`), profile injected into `AiChatService` prompt |
-| **3 — Structured Snapshot** | `StructuredContextService`, `PromptAssemblyService`; wire into chat |
-| **4 — Vector Search** | `EmbeddingEventListener` (Spring async events on Note/Goal save); `searchSimilar()` wired into `PromptAssemblyService` |
-| **5 — Conversation Memory** | `ConversationMemoryService`, `ConversationMemoryController`, `ConversationMemoryListener` |
-| **6 — Activity Intelligence** | Hook `ActivityLogService` into `HabitService`, `GoalService`, `GymService`, `TransactionService`, `TodoService` |
-| **7 — Proactive Insights** | `InsightGeneratorService` (`@Scheduled`), push via `NotificationDispatchService` |
-| **8 — RAG Evaluation** | `RagEvaluationService`, `RagEvaluationController`, `RagEvaluationListener`, admin dashboard page |
+### Phase C — Hybrid Retrieval + Dynamic Budgeting
+1. Introduce `MemoryRetrievalStrategyService`.
+2. Candidate generation:
+  - Vector candidates from notes/goals/conversation memories.
+  - Structured candidates from fact/category/domain matches.
+3. Hybrid scoring:
+  - `score = w_vec + w_struct + w_recency + w_importance + w_confidence (+ optional access boost)`
+4. Dynamic top-k:
+  - Compute prompt budget from model limit and reserved tokens.
+  - Estimate chunk tokens.
+  - Set `k` by budget and query complexity; clamp between min/cap.
+5. Replace `PromptAssemblyService` fixed limits (`50` memories, vector `5`) with strategy output.
+
+### Phase D — Conversation Memory Embeddings
+1. On memory create/update, embed and store with `source_type = conversation_memory`.
+2. Include conversation-memory vectors in semantic retrieval.
+3. Keep phase-1 embedding scope constrained to: notes + goals + conversation memories.
+
+### Phase E — Validation, Rollout, and Safety
+1. A/B baseline (recency-only) vs hybrid+dynamic strategy.
+2. Track: Recall@k, MRR/nDCG, answer quality, latency, token usage, and cost.
+3. Feature-flag rollout:
+  - `MEMORY_HYBRID_READS`
+  - `MEMORY_DYNAMIC_TOPK`
+  - `MEMORY_CONVO_EMBEDDINGS`
+4. Keep fallback behavior available until stability window is passed.
+
+### Immediate First Implementation Slice (Start Here)
+1. Migration: enhance `conversation_memories` + add `memory_relationships` + `memory_retrieval_log`.
+2. Service refactor: remove category replacement in extraction.
+3. Retrieval service v1: hybrid score with deterministic weights.
+4. Prompt assembly integration: dynamic top-k and token budget guardrails.
 
 ---
 
----
 
 ## Target Architecture (Final State)
 

@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lifos.backend.dto.UpdateUserProfileRequest;
+import com.lifos.backend.config.AiFoundationProperties;
 import com.lifos.backend.entity.ConversationMemory;
+import com.lifos.backend.entity.MemoryRelationship;
 import com.lifos.backend.entity.User;
 import com.lifos.backend.repository.ConversationMemoryRepository;
+import com.lifos.backend.repository.MemoryRelationshipRepository;
 import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,19 +19,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.*;
+import java.util.HexFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * Extracts persistent "life facts" from Chat Buddy conversations and stores
- * them in conversation_memories, grouped by semantic category.
+ * them in conversation_memories as versioned, fact-level records.
  *
  * Runs fully async after a response is sent — chat latency is never affected.
- * Category-level replacement: when new memories arrive for a category, all
- * old memories in that category are deactivated first.
+ * Facts are deduplicated by hash and can supersede older facts without
+ * deactivating an entire category.
  */
 @Slf4j
 @Service
@@ -44,8 +51,11 @@ public class MemoryExtractionService {
             Pattern.CASE_INSENSITIVE);
 
     private final ConversationMemoryRepository memoryRepository;
+    private final MemoryRelationshipRepository memoryRelationshipRepository;
     private final UserRepository userRepository;
     private final UserProfileService userProfileService;
+    private final EmbeddingService embeddingService;
+    private final AiFoundationProperties aiFoundationProperties;
     private final AiConfigurationResolver aiConfigurationResolver;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
@@ -85,32 +95,86 @@ public class MemoryExtractionService {
                 return;
             }
 
-            // Group by category and do a category-level replace
             Map<String, List<MemoryChunk>> byCategory = extracted.stream()
                     .collect(Collectors.groupingBy(c -> c.category));
 
-            for (Map.Entry<String, List<MemoryChunk>> entry : byCategory.entrySet()) {
-                String category = entry.getKey();
-                List<MemoryChunk> newChunks = entry.getValue();
+            int storedCount = 0;
+            int dedupedCount = 0;
 
-                // Deactivate all old memories in this category before inserting new ones
-                memoryRepository.deactivateByUserUidAndCategory(userUid, category);
-
-                for (MemoryChunk chunk : newChunks) {
-                    ConversationMemory memory = ConversationMemory.builder()
-                            .user(user)
-                            .memoryText(chunk.memory)
-                            .category(category)
-                            .confidence(chunk.confidence)
-                            .sourceConversationDate(Instant.now())
-                            .active(true)
-                            .build();
-                    memoryRepository.save(memory);
+            for (MemoryChunk chunk : extracted) {
+                String normalized = normalizeMemoryText(chunk.memory);
+                if (normalized.isBlank()) {
+                    continue;
                 }
 
-                log.info("Stored {} memory chunk(s) under [{}] for user [{}]",
-                        newChunks.size(), category, userUid);
+                String hash = computeHash(normalized);
+                if (memoryRepository.findByUserUidAndMemoryHashAndActiveTrue(userUid, hash).isPresent()) {
+                    dedupedCount++;
+                    continue;
+                }
+
+                String domain = normalizeDomain(chunk.category);
+                ConversationMemory superseded = findLikelySuperseded(existingMemories, domain, normalized);
+
+                ConversationMemory memory = ConversationMemory.builder()
+                        .user(user)
+                        .memoryText(chunk.memory)
+                        .category(chunk.category)
+                        .domain(domain)
+                        .confidence(chunk.confidence)
+                        .factualityScore(clamp(chunk.confidence))
+                        .relevanceScore(0.7f)
+                        .timelinessScore(0.7f)
+                        .overallConfidence(weightedOverall(chunk.confidence))
+                        .memoryHash(hash)
+                        .verificationStatus("unverified")
+                        .extractionModel(resolveExtractionModelName())
+                        .extractionConfidence(clamp(chunk.confidence))
+                        .sourceConversationDate(Instant.now())
+                        .active(true)
+                        .updatedAt(Instant.now())
+                        .build();
+
+                if (superseded != null) {
+                    memory.setParentMemoryId(superseded.getId());
+                }
+
+                ConversationMemory saved = memoryRepository.save(memory);
+                existingMemories.add(saved);
+                storedCount++;
+
+                if (superseded != null) {
+                    superseded.setActive(false);
+                    superseded.setSupersededBy(saved.getId());
+                    superseded.setArchivedAt(Instant.now());
+                    superseded.setUpdatedAt(Instant.now());
+                    memoryRepository.save(superseded);
+
+                    memoryRelationshipRepository.save(MemoryRelationship.builder()
+                            .user(user)
+                            .fromMemory(superseded)
+                            .toMemory(saved)
+                            .relationshipType("supersedes")
+                            .confidence(Math.max(0.65f, chunk.confidence))
+                            .reason("Detected semantic update for same domain fact")
+                            .build());
+                }
+
+                if (aiFoundationProperties.getRag().isEnableConversationMemoryEmbeddings()) {
+                    embeddingService.embedAndStore(
+                        userUid,
+                        "conversation_memory",
+                        saved.getId(),
+                        saved.getMemoryText(),
+                        domain,
+                        clamp(saved.getOverallConfidence()),
+                        0.8f,
+                        0.7f
+                    );
+                }
             }
+
+            log.info("Memory extraction for user [{}]: stored={}, deduped={}", userUid, storedCount, dedupedCount);
 
             // Enrich structured profile fields from extracted memory chunks
             enrichProfileFromChunks(userUid, byCategory);
@@ -219,7 +283,7 @@ public class MemoryExtractionService {
     private List<MemoryChunk> callExtractionApi(String apiKey, String prompt) {
         // Use the cheapest/fastest model always — extraction doesn't need power
         String provider = resolveExtractionProvider();
-        String model = provider.equals("openai") ? "gpt-4o-mini" : "openai/gpt-4o-mini";
+        String model = resolveExtractionModelName();
         String url = provider.equals("openai")
                 ? "https://api.openai.com/v1/chat/completions"
                 : "https://openrouter.ai/api/v1/chat/completions";
@@ -294,10 +358,93 @@ public class MemoryExtractionService {
         return configured.equals("gemini") ? "openrouter" : configured;
     }
 
+    private String resolveExtractionModelName() {
+        String provider = resolveExtractionProvider();
+        return provider.equals("openai") ? "gpt-4o-mini" : "openai/gpt-4o-mini";
+    }
+
     private String resolveExtractionApiKey() {
         var config = aiConfigurationResolver.resolve();
         String provider = resolveExtractionProvider();
         return aiConfigurationResolver.resolveProviderApiKey(provider, config.getApiKeys());
+    }
+
+    private String normalizeMemoryText(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.replaceAll("\\s+", " ").trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeDomain(String category) {
+        if (category == null || category.isBlank()) {
+            return "context";
+        }
+        String normalized = category.trim().toLowerCase(Locale.ROOT);
+        return VALID_CATEGORIES.contains(normalized) ? normalized : "context";
+    }
+
+    private String computeHash(String text) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
+    }
+
+    private ConversationMemory findLikelySuperseded(List<ConversationMemory> existing,
+                                                    String domain,
+                                                    String newText) {
+        for (ConversationMemory candidate : existing) {
+            if (!Boolean.TRUE.equals(candidate.getActive())) {
+                continue;
+            }
+            String candidateDomain = normalizeDomain(candidate.getDomain() != null
+                    ? candidate.getDomain()
+                    : candidate.getCategory());
+            if (!candidateDomain.equals(domain)) {
+                continue;
+            }
+
+            String oldText = normalizeMemoryText(candidate.getMemoryText());
+            if (oldText.isBlank()) {
+                continue;
+            }
+
+            if (newText.contains(oldText) || oldText.contains(newText) || tokenOverlap(newText, oldText) >= 0.8f) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private float tokenOverlap(String a, String b) {
+        Set<String> left = Arrays.stream(a.split(" "))
+                .filter(s -> s.length() > 2)
+                .collect(Collectors.toSet());
+        Set<String> right = Arrays.stream(b.split(" "))
+                .filter(s -> s.length() > 2)
+                .collect(Collectors.toSet());
+
+        if (left.isEmpty() || right.isEmpty()) {
+            return 0f;
+        }
+
+        Set<String> intersection = new HashSet<>(left);
+        intersection.retainAll(right);
+        int minSize = Math.min(left.size(), right.size());
+        return minSize == 0 ? 0f : (float) intersection.size() / minSize;
+    }
+
+    private float weightedOverall(float extractionConfidence) {
+        float c = clamp(extractionConfidence);
+        return clamp((0.45f * c) + (0.30f * 0.7f) + (0.25f * 0.7f));
+    }
+
+    private float clamp(float score) {
+        return Math.max(0f, Math.min(1f, score));
     }
 
     // ── Internal DTO ─────────────────────────────────────────────────────────

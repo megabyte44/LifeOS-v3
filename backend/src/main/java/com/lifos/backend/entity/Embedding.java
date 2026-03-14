@@ -36,6 +36,23 @@ public class Embedding {
     @Column(name = "content_preview", columnDefinition = "TEXT")
     private String contentPreview;
 
+    private String domain;
+
+    @Column(name = "embedding_quality_score")
+    @Builder.Default
+    private Float embeddingQualityScore = 0.7f;
+
+    @Column(name = "recency_weight")
+    @Builder.Default
+    private Float recencyWeight = 0.5f;
+
+    @Column(name = "importance_signal")
+    @Builder.Default
+    private Float importanceSignal = 0.5f;
+
+    @Column(name = "last_used_in_context")
+    private Instant lastUsedInContext;
+
     @Column(name = "embedding")
     @JdbcTypeCode(SqlTypes.VECTOR)
     private float[] embedding;

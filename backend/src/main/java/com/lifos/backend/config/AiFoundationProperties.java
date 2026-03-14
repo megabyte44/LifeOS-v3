@@ -53,6 +53,12 @@ public class AiFoundationProperties {
     public static class Rag {
         private int defaultVectorLimit = 5;
         private int maxContextChunks = 5;
+        /** Runtime flag: use hybrid memory retrieval strategy. */
+        private boolean enableHybridReads = true;
+        /** Runtime flag: enable adaptive top-k and token budget selection. */
+        private boolean enableDynamicTopK = true;
+        /** Runtime flag: embed extracted conversation memories. */
+        private boolean enableConversationMemoryEmbeddings = true;
     }
 
     @Getter
