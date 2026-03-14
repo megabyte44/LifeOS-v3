@@ -72,11 +72,11 @@ ai:
     enable-dynamic-top-k: ${MEMORY_DYNAMIC_TOPK:true}
     enable-conversation-memory-embeddings: ${MEMORY_CONVO_EMBEDDINGS:true}
     # KG-RAG flags
-    enable-universal-embedding: ${RAG_UNIVERSAL_EMBEDDING:false}
-    enable-knowledge-graph: ${RAG_KNOWLEDGE_GRAPH:false}
-    enable-edge-extraction: ${RAG_EDGE_EXTRACTION:false}
-    enable-query-intent-classification: ${RAG_QUERY_INTENT:false}
-    enable-graph-boosted-scoring: ${RAG_GRAPH_BOOST:false}
+    enable-universal-embedding: ${RAG_UNIVERSAL_EMBEDDING:true}
+    enable-knowledge-graph: ${RAG_KNOWLEDGE_GRAPH:true}
+    enable-edge-extraction: ${RAG_EDGE_EXTRACTION:true}
+    enable-query-intent-classification: ${RAG_QUERY_INTENT:true}
+    enable-graph-boosted-scoring: ${RAG_GRAPH_BOOST:true}
     enabled-source-types: []
     graph-max-hops: 2
     graph-boost-weight: 0.15
