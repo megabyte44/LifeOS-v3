@@ -31,6 +31,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { aiChatService } from '@/services';
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    AI PERSONALITIES
@@ -225,65 +226,82 @@ function AiChatContent() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const STORAGE_KEY = `ai_chat_sessions_${user?.uid || 'guest'}`;
-  const CURRENT_SESSION_KEY = `ai_chat_current_${user?.uid || 'guest'}`;
+  const CLOUD_SESSION_ID = 'cloud-history';
 
-  // ── Storage ──
-  const saveSessions = useCallback(
-    (s: ChatSession[]) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-      } catch {}
-    },
-    [STORAGE_KEY]
-  );
-
-  const loadSessions = useCallback((): ChatSession[] => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored).map((s: any) => ({
-          ...s,
-          createdAt: new Date(s.createdAt),
-          messages: s.messages.map((m: any) => ({
-            ...m,
-            timestamp: new Date(m.timestamp),
-          })),
-        }));
-      }
-    } catch {}
-    return [];
-  }, [STORAGE_KEY]);
-
-  const saveCurrentId = useCallback(
-    (id: string | null) => {
-      try {
-        id
-          ? localStorage.setItem(CURRENT_SESSION_KEY, id)
-          : localStorage.removeItem(CURRENT_SESSION_KEY);
-      } catch {}
-    },
-    [CURRENT_SESSION_KEY]
-  );
-
-  const loadCurrentId = useCallback((): string | null => {
-    try {
-      return localStorage.getItem(CURRENT_SESSION_KEY);
-    } catch {
-      return null;
+  const normalizePersonality = (value?: string): keyof typeof AI_PERSONALITIES => {
+    if (value && value in AI_PERSONALITIES) {
+      return value as keyof typeof AI_PERSONALITIES;
     }
-  }, [CURRENT_SESSION_KEY]);
+    return 'casual';
+  };
+
+  const loadServerHistory = useCallback(async () => {
+    if (!user) {
+      setSessions([]);
+      setCurrentSessionId(null);
+      return;
+    }
+
+    try {
+      const history = await aiChatService.getHistory(200);
+      if (!history.length) {
+        setSessions((prev) => prev.filter((s) => s.id === 'temp'));
+        if (!isTemporaryChat) {
+          setCurrentSessionId(null);
+        }
+        return;
+      }
+
+      const chronological = [...history].reverse();
+      const allMessages: ChatMessage[] = chronological.flatMap((item) => {
+        const ts = new Date(item.createdAt);
+        return [
+          {
+            id: `${item.id}-u`,
+            role: 'user' as const,
+            content: item.userMessage,
+            timestamp: ts,
+          },
+          {
+            id: `${item.id}-a`,
+            role: 'assistant' as const,
+            content: item.assistantMessage,
+            timestamp: ts,
+          },
+        ];
+      });
+
+      const latestItem = chronological[chronological.length - 1];
+      const cloudSession: ChatSession = {
+        id: CLOUD_SESSION_ID,
+        title: 'Cloud Chat History',
+        messages: allMessages,
+        personality: normalizePersonality(latestItem?.personality),
+        createdAt: new Date(chronological[0].createdAt),
+      };
+
+      setSessions((prev) => {
+        const temp = prev.find((s) => s.id === 'temp');
+        return temp ? [temp, cloudSession] : [cloudSession];
+      });
+
+      if (!isTemporaryChat) {
+        setCurrentSessionId(CLOUD_SESSION_ID);
+      }
+    } catch (error: any) {
+      console.error('Failed to load cloud chat history:', error);
+      toast({
+        title: 'History Sync Failed',
+        description: error?.message || 'Could not load cloud chat history.',
+        variant: 'destructive',
+      });
+    }
+  }, [user, isTemporaryChat, toast]);
 
   // ── Effects ──
   useEffect(() => {
-    if (!user) return;
-    const loaded = loadSessions();
-    if (loaded.length > 0) {
-      setSessions(loaded);
-      const savedId = loadCurrentId();
-      if (savedId && loaded.find((s) => s.id === savedId)) setCurrentSessionId(savedId);
-    }
-  }, [user, loadSessions, loadCurrentId]);
+    void loadServerHistory();
+  }, [loadServerHistory]);
 
   // Override AppLayout for chat: kill outer scroll, fill width, hide bottom nav + FAB
   useEffect(() => {
@@ -328,14 +346,6 @@ function AiChatContent() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (user && sessions.length > 0) saveSessions(sessions);
-  }, [sessions, user, saveSessions]);
-
-  useEffect(() => {
-    if (user) saveCurrentId(currentSessionId);
-  }, [currentSessionId, user, saveCurrentId]);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
@@ -393,15 +403,20 @@ function AiChatContent() {
     toast({ title: 'Chat Deleted', description: 'Session removed.' });
   };
 
-  const clearAllSessions = () => {
+  const clearAllSessions = async () => {
     if (!confirm('Clear all chat history? This cannot be undone.')) return;
-    setSessions([]);
-    setCurrentSessionId(null);
     try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(CURRENT_SESSION_KEY);
-    } catch {}
-    toast({ title: 'All Chats Cleared' });
+      await aiChatService.clearHistory();
+      setSessions((prev) => prev.filter((s) => s.id === 'temp'));
+      setCurrentSessionId(isTemporaryChat ? 'temp' : null);
+      toast({ title: 'Cloud Chat History Cleared' });
+    } catch (error: any) {
+      toast({
+        title: 'Clear Failed',
+        description: error?.message || 'Could not clear cloud chat history.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const copyMessage = (msgId: string, content: string) => {

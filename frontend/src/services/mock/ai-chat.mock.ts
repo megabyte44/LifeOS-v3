@@ -12,6 +12,17 @@ export interface AiChatResponse {
   model?: string;
 }
 
+export interface AiChatHistoryItem {
+  id: string;
+  mode: string;
+  personality?: string;
+  provider?: string;
+  model?: string;
+  userMessage: string;
+  assistantMessage: string;
+  createdAt: string;
+}
+
 export const aiChatMockService = {
   async sendMessage(request: AiChatRequest): Promise<AiChatResponse> {
     await delay(800);
@@ -20,5 +31,14 @@ export const aiChatMockService = {
       result: `[Mock AI] I received your message: "${lastMessage.slice(0, 50)}${lastMessage.length > 50 ? '...' : ''}". This is a simulated response. Connect a real backend to get actual AI responses.`,
       model: 'mock-model',
     };
+  },
+
+  async getHistory(_limit = 100): Promise<AiChatHistoryItem[]> {
+    await delay(100);
+    return [];
+  },
+
+  async clearHistory(): Promise<void> {
+    await delay(100);
   },
 };
