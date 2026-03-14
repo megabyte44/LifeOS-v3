@@ -115,7 +115,7 @@ const primaryNav: NavItem[] = [
 const mobileNav: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Today' },
   { href: '/habits', icon: AnvilIcon, label: 'Habits' },
-  { href: '/gym', icon: Dumbbell, label: 'Health' },
+  { href: '/ai-chat', icon: MessageSquare, label: 'Chat' },
   { href: '/expenses', icon: Wallet, label: 'Finance' },
   { href: '/notes', icon: StickyNote, label: 'Notes' },
 ];

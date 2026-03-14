@@ -2,10 +2,12 @@ package com.lifos.backend.controller;
 
 import com.lifos.backend.dto.AiChatRequest;
 import com.lifos.backend.dto.AiChatResponse;
+import com.lifos.backend.dto.AiChatHistoryItemResponse;
 import com.lifos.backend.entity.ConversationMemory;
 import com.lifos.backend.repository.ConversationMemoryRepository;
 import com.lifos.backend.security.SecurityUtils;
 import com.lifos.backend.service.AiChatService;
+import com.lifos.backend.service.AiChatHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class AiChatController {
 
     private final AiChatService aiChatService;
+    private final AiChatHistoryService aiChatHistoryService;
     private final ConversationMemoryRepository memoryRepository;
 
     @PostMapping("/chat")
@@ -34,6 +37,19 @@ public class AiChatController {
         SseEmitter emitter = new SseEmitter(120_000L);
         aiChatService.streamChat(req, SecurityUtils.getCurrentUserUid(), emitter);
         return emitter;
+    }
+
+    /** GET /api/ai/chat/history?limit=50 — returns stored chat exchanges */
+    @GetMapping("/chat/history")
+    public List<AiChatHistoryItemResponse> getChatHistory(@RequestParam(defaultValue = "50") int limit) {
+        return aiChatHistoryService.getHistory(SecurityUtils.getCurrentUserUid(), limit);
+    }
+
+    /** DELETE /api/ai/chat/history — clears all stored chat history for current user */
+    @DeleteMapping("/chat/history")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearChatHistory() {
+        aiChatHistoryService.clearHistory(SecurityUtils.getCurrentUserUid());
     }
 
     // ── Conversation Memories ─────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 server:
   port: 8000
+  servlet:
+    context-path: /api
 
 spring:
   application:
@@ -68,6 +70,9 @@ ai:
   rag:
     default-vector-limit: 5
     max-context-chunks: 5
+    enable-hybrid-reads: ${MEMORY_HYBRID_READS:true}
+    enable-dynamic-top-k: ${MEMORY_DYNAMIC_TOPK:true}
+    enable-conversation-memory-embeddings: ${MEMORY_CONVO_EMBEDDINGS:true}
   async:
     core-pool-size: 4
     max-pool-size: 8

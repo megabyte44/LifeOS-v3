@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +30,18 @@ public class EmbeddingService {
 
     @Transactional
     public void embedAndStore(String userUid, String sourceType, UUID sourceId, String text) {
+        embedAndStore(userUid, sourceType, sourceId, text, null, 0.7f, 0.5f, 0.5f);
+    }
+
+    @Transactional
+    public void embedAndStore(String userUid,
+                              String sourceType,
+                              UUID sourceId,
+                              String text,
+                              String domain,
+                              float qualityScore,
+                              float recencyWeight,
+                              float importanceSignal) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -54,6 +67,10 @@ public class EmbeddingService {
 
         embedding.setContentHash(contentHash);
         embedding.setContentPreview(text.substring(0, Math.min(text.length(), 200)));
+        embedding.setDomain(domain);
+        embedding.setEmbeddingQualityScore(clamp(qualityScore));
+        embedding.setRecencyWeight(clamp(recencyWeight));
+        embedding.setImportanceSignal(clamp(importanceSignal));
         embedding.setEmbedding(vector);
         embedding.setUpdatedAt(Instant.now());
 
@@ -70,6 +87,33 @@ public class EmbeddingService {
     public List<Embedding> searchSimilar(String userUid, String queryText, int limit) {
         float[] queryVector = openAiEmbeddingClient.getEmbedding(queryText);
         return embeddingRepository.findSimilar(userUid, toVectorString(queryVector), limit);
+    }
+
+    public List<EmbeddingCandidate> searchCandidates(String userUid, String queryText, int limit) {
+        float[] queryVector = openAiEmbeddingClient.getEmbedding(queryText);
+        return embeddingRepository.findSimilarCandidates(userUid, toVectorString(queryVector), limit)
+                .stream()
+                .map(p -> new EmbeddingCandidate(
+                        p.getId(),
+                        p.getSourceType(),
+                        p.getSourceId(),
+                        p.getContentPreview(),
+                        p.getSimilarity() != null ? p.getSimilarity() : 0.0,
+                        p.getUpdatedAt(),
+                        p.getDomain(),
+                        p.getEmbeddingQualityScore() != null ? p.getEmbeddingQualityScore() : 0.7f,
+                        p.getRecencyWeight() != null ? p.getRecencyWeight() : 0.5f,
+                        p.getImportanceSignal() != null ? p.getImportanceSignal() : 0.5f
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public void touchLastUsed(Collection<UUID> embeddingIds) {
+        if (embeddingIds == null || embeddingIds.isEmpty()) {
+            return;
+        }
+        embeddingRepository.touchLastUsed(List.copyOf(embeddingIds), Instant.now());
     }
 
     /** Converts float[] to pgvector literal format: [0.1,0.2,...] */
@@ -97,4 +141,21 @@ public class EmbeddingService {
         if (text.length() <= maxChars) return text;
         return text.substring(0, maxChars);
     }
+
+    private float clamp(float score) {
+        return Math.max(0f, Math.min(1f, score));
+    }
+
+    public record EmbeddingCandidate(
+            UUID embeddingId,
+            String sourceType,
+            UUID sourceId,
+            String contentPreview,
+            double similarity,
+            Instant updatedAt,
+            String domain,
+            float qualityScore,
+            float recencyWeight,
+            float importanceSignal
+    ) {}
 }
