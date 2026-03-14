@@ -27,21 +27,16 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
 
     const inlineFormat = (s: string) =>
       s
-        // Bold+italic
         .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-        // Bold
         .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-        // Italic
         .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-        // Inline code
-        .replace(/`([^`]+)`/g, '<code class="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">$1</code>')
-        // Links
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer">$1</a>');
+        .replace(/`([^`]+)`/g, '<code class="bg-muted/70 px-1.5 py-0.5 rounded text-[12px] font-mono text-foreground/80">$1</code>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline underline-offset-2 hover:text-primary/80" target="_blank" rel="noopener noreferrer">$1</a>');
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
-      // ── Fenced code blocks ───────────────────────────────────────────────
+      // Fenced code blocks
       if (line.startsWith('```')) {
         if (!inCodeBlock) {
           closeList();
@@ -51,8 +46,11 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
         } else {
           inCodeBlock = false;
           const escaped = codeLines.map(escapeHtml).join('\n');
+          const langLabel = codeLang
+            ? `<div class="flex items-center justify-between px-4 py-2 border-b border-white/5 text-[11px] text-white/40"><span>${escapeHtml(codeLang)}</span><button onclick="(function(btn){var code=btn.closest('.code-block-wrapper').querySelector('code');navigator.clipboard.writeText(code.textContent);btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1500)})(this)" class="hover:text-white/70 transition-colors cursor-pointer">Copy</button></div>`
+            : `<div class="flex items-center justify-end px-4 py-2 border-b border-white/5"><button onclick="(function(btn){var code=btn.closest('.code-block-wrapper').querySelector('code');navigator.clipboard.writeText(code.textContent);btn.textContent='Copied!';setTimeout(function(){btn.textContent='Copy'},1500)})(this)" class="text-[11px] text-white/40 hover:text-white/70 transition-colors cursor-pointer">Copy</button></div>`;
           output.push(
-            `<pre class="bg-muted rounded-lg p-3 my-2 overflow-x-auto text-xs font-mono whitespace-pre leading-relaxed">${escaped}</pre>`
+            `<div class="code-block-wrapper rounded-xl bg-[#1e1e1e] dark:bg-[#0d0d0d] my-3 overflow-hidden">${langLabel}<pre class="p-4 overflow-x-auto"><code class="text-[13px] font-mono leading-relaxed text-[#d4d4d4]">${escaped}</code></pre></div>`
           );
           codeLines = [];
         }
@@ -60,60 +58,58 @@ export const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererPr
       }
       if (inCodeBlock) { codeLines.push(line); continue; }
 
-      // ── Headings ─────────────────────────────────────────────────────────
+      // Headings
       if (line.startsWith('### ')) {
         closeList();
-        output.push(`<h3 class="text-base font-semibold mt-4 mb-1">${inlineFormat(line.slice(4))}</h3>`);
+        output.push(`<h3 class="text-base font-semibold mt-5 mb-1.5">${inlineFormat(line.slice(4))}</h3>`);
         continue;
       }
       if (line.startsWith('## ')) {
         closeList();
-        output.push(`<h2 class="text-lg font-semibold mt-4 mb-1">${inlineFormat(line.slice(3))}</h2>`);
+        output.push(`<h2 class="text-lg font-semibold mt-5 mb-1.5">${inlineFormat(line.slice(3))}</h2>`);
         continue;
       }
       if (line.startsWith('# ')) {
         closeList();
-        output.push(`<h1 class="text-xl font-bold mt-4 mb-2">${inlineFormat(line.slice(2))}</h1>`);
+        output.push(`<h1 class="text-xl font-bold mt-5 mb-2">${inlineFormat(line.slice(2))}</h1>`);
         continue;
       }
 
-      // ── Horizontal rule ───────────────────────────────────────────────────
+      // Horizontal rule
       if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
         closeList();
-        output.push('<hr class="my-3 border-border" />');
+        output.push('<hr class="my-4 border-border/30" />');
         continue;
       }
 
-      // ── Numbered list ─────────────────────────────────────────────────────
+      // Numbered list
       const olMatch = line.match(/^(\d+)\.\s+(.*)/);
       if (olMatch) {
         if (inUl) { output.push('</ul>'); inUl = false; }
-        if (!inOl) { output.push('<ol class="list-decimal pl-5 my-1 space-y-0.5">'); inOl = true; }
+        if (!inOl) { output.push('<ol class="list-decimal pl-5 my-2 space-y-1">'); inOl = true; }
         output.push(`<li class="text-sm leading-relaxed">${inlineFormat(olMatch[2])}</li>`);
         continue;
       }
 
-      // ── Unordered list ─────────────────────────────────────────────────────
+      // Unordered list
       const ulMatch = line.match(/^[-*]\s+(.*)/);
       if (ulMatch) {
         if (inOl) { output.push('</ol>'); inOl = false; }
-        if (!inUl) { output.push('<ul class="list-disc pl-5 my-1 space-y-0.5">'); inUl = true; }
+        if (!inUl) { output.push('<ul class="list-disc pl-5 my-2 space-y-1">'); inUl = true; }
         output.push(`<li class="text-sm leading-relaxed">${inlineFormat(ulMatch[1])}</li>`);
         continue;
       }
 
-      // ── Blank line ────────────────────────────────────────────────────────
+      // Blank line
       if (line.trim() === '') {
-        // Preserve list continuity across markdown spacing lines.
-        // Closing here would restart <ol> numbering from 1 on the next item.
         if (inUl || inOl) {
           continue;
         }
-        output.push('<div class="h-2"></div>');
+        output.push('<div class="h-3"></div>');
         continue;
       }
 
-      // ── Paragraph ────────────────────────────────────────────────────────
+      // Paragraph
       closeList();
       output.push(`<p class="text-sm leading-relaxed">${inlineFormat(line)}</p>`);
     }
