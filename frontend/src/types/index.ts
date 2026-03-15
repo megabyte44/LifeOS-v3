@@ -186,6 +186,10 @@ export type AiConfiguration = {
     openai?: string;
   };
   ragEnabled: boolean;
+  insightsEnabled?: boolean;
+  insightsCron?: string;
+  evaluationEnabled?: boolean;
+  evaluationSampleRate?: number;
   updatedAt: string;
   updatedBy: string;
 };
@@ -258,6 +262,31 @@ export type UserStats = {
   habitsCount: number;
   transactionsCount: number;
   aiMessagesCount: number;
+  role: string;
+};
+
+export type AdminDashboardStats = {
+  totalUsers: number;
+  totalAiMessages: number;
+};
+
+export type DailyMessageCount = {
+  date: string;
+  count: number;
+};
+
+export type UserMessageCount = {
+  uid: string;
+  email: string;
+  displayName: string | null;
+  count: number;
+};
+
+export type AdminAnalytics = {
+  dailyMessages: DailyMessageCount[];
+  topUsers: UserMessageCount[];
+  totalMessages: number;
+  avgPerDay: number;
 };
 
 // ===================================

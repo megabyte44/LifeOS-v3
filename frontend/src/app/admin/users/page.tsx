@@ -19,12 +19,14 @@ import { UserStats } from '@/types';
 import { Users, Search, RefreshCw, Download, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAdminUsers } from '@/hooks/api';
+import { useToast } from '@/hooks/use-toast';
 
 export default function UsersManagementPage() {
   const { isAdmin, loading: adminLoading } = useAdminCheck();
-  const { users, isLoading, refetch } = useAdminUsers();
+  const { users, isLoading, refetch, updateRole, isUpdatingRole } = useAdminUsers();
+  const { toast } = useToast();
   const loading = adminLoading || isLoading;
-  const [searchTerm, setSearchTerm] = useState('');  
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'email' | 'lastLogin' | 'mostActive'>('newest');
 
   const now = new Date();
@@ -38,9 +40,19 @@ export default function UsersManagementPage() {
     activeThisMonth: users.filter(u => new Date(u.lastLoginAt) >= monthStart).length,
   };
 
+  async function handleRoleToggle(uid: string, currentRole: string) {
+    const newRole = currentRole === 'admin' ? 'user' : 'admin';
+    try {
+      await updateRole({ uid, role: newRole });
+      toast({ title: 'Role updated', description: `User role changed to ${newRole}` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to update role', variant: 'destructive' });
+    }
+  }
+
   function exportUsers() {
     const csv = [
-      ['Email', 'Display Name', 'Created At', 'Last Login', 'Notes', 'Todos', 'Habits', 'Transactions', 'AI Messages'].join(','),
+      ['Email', 'Display Name', 'Created At', 'Last Login', 'Notes', 'Todos', 'Habits', 'Transactions', 'AI Messages', 'Role'].join(','),
       ...filteredAndSortedUsers.map(u => [
         u.email,
         u.displayName || '',
@@ -50,7 +62,8 @@ export default function UsersManagementPage() {
         u.todosCount,
         u.habitsCount,
         u.transactionsCount,
-        u.aiMessagesCount
+        u.aiMessagesCount,
+        u.role,
       ].join(','))
     ].join('\n');
 
@@ -63,7 +76,7 @@ export default function UsersManagementPage() {
   }
 
   const filteredAndSortedUsers = users
-    .filter(u => 
+    .filter(u =>
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.displayName && u.displayName.toLowerCase().includes(searchTerm.toLowerCase()))
     )
@@ -189,7 +202,7 @@ export default function UsersManagementPage() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
             ) : (
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -201,12 +214,13 @@ export default function UsersManagementPage() {
                       <TableHead className="text-right">Habits</TableHead>
                       <TableHead className="text-right">Transactions</TableHead>
                       <TableHead className="text-right">AI Messages</TableHead>
+                      <TableHead>Role</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredAndSortedUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">
                           No users found
                         </TableCell>
                       </TableRow>
@@ -236,6 +250,22 @@ export default function UsersManagementPage() {
                           <TableCell className="text-right">{u.habitsCount}</TableCell>
                           <TableCell className="text-right">{u.transactionsCount}</TableCell>
                           <TableCell className="text-right">{u.aiMessagesCount}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
+                                {u.role}
+                              </Badge>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRoleToggle(u.uid, u.role)}
+                                disabled={isUpdatingRole}
+                                className="text-xs h-7"
+                              >
+                                {u.role === 'admin' ? 'Demote' : 'Promote'}
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}

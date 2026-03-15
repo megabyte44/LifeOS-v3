@@ -36,6 +36,31 @@ public class AdminController {
         return adminService.getUsers();
     }
 
+    /** PUT /api/admin/users/{uid}/role */
+    @PutMapping("/users/{uid}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateUserRole(@PathVariable String uid,
+                               @RequestBody UpdateUserRoleRequest req) {
+        adminService.updateUserRole(uid, req.getRole());
+    }
+
+    // ── Dashboard ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AdminDashboardStatsResponse getDashboard() {
+        return adminService.getDashboardStats();
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/analytics")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AnalyticsResponse getAnalytics(@RequestParam(defaultValue = "30") int days) {
+        return adminService.getAnalytics(days);
+    }
+
     // ── AI Config ─────────────────────────────────────────────────────────────
 
     @GetMapping("/ai-config")

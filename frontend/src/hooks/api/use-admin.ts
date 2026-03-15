@@ -6,6 +6,8 @@ import type {
   Announcement,
   AboutPageContent,
   UserStats,
+  AdminDashboardStats,
+  AdminAnalytics,
 } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -16,6 +18,7 @@ const EMPTY_ANNOUNCEMENTS: Announcement[] = [];
 
 export function useAdminUsers() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ['admin', 'users'],
@@ -23,11 +26,55 @@ export function useAdminUsers() {
     enabled: !!user,
   });
 
+  const updateRole = useMutation({
+    mutationFn: ({ uid, role }: { uid: string; role: string }) =>
+      adminService.updateUserRole(uid, role),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
+  });
+
   return {
     users: query.data ?? EMPTY_USERS,
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
+    updateRole: updateRole.mutateAsync,
+    isUpdatingRole: updateRole.isPending,
+  };
+}
+
+// ---------- Dashboard ----------
+
+export function useAdminDashboard() {
+  const { user } = useAuth();
+
+  const query = useQuery({
+    queryKey: ['admin', 'dashboard'],
+    queryFn: () => adminService.getDashboardStats(),
+    enabled: !!user,
+  });
+
+  return {
+    stats: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+}
+
+// ---------- Analytics ----------
+
+export function useAdminAnalytics(days: number) {
+  const { user } = useAuth();
+
+  const query = useQuery({
+    queryKey: ['admin', 'analytics', days],
+    queryFn: () => adminService.getAnalytics(days),
+    enabled: !!user,
+  });
+
+  return {
+    analytics: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error,
   };
 }
 

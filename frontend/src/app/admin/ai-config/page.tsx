@@ -39,6 +39,10 @@ Focus on data-driven insights and practical recommendations.`
     openai: ''
   },
   ragEnabled: true,
+  insightsEnabled: false,
+  insightsCron: '0 9 * * *',
+  evaluationEnabled: false,
+  evaluationSampleRate: 10,
   updatedAt: new Date().toISOString(),
   updatedBy: 'system'
 };
@@ -377,6 +381,60 @@ export default function AiConfigPage() {
               rows={8}
               className="font-mono text-sm"
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Automation &amp; Evaluation</CardTitle>
+            <CardDescription>Configure proactive insights scheduling and RAG evaluation</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <Label>Enable Proactive Insights</Label>
+                <p className="text-sm text-muted-foreground">Automatically generate daily life insights for users</p>
+              </div>
+              <Switch
+                checked={config.insightsEnabled ?? false}
+                onCheckedChange={(checked) => setConfig({ ...config, insightsEnabled: checked })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Insights Schedule (Cron)</Label>
+              <Input
+                value={config.insightsCron ?? '0 9 * * *'}
+                onChange={(e) => setConfig({ ...config, insightsCron: e.target.value })}
+                placeholder="0 9 * * *"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">Standard cron format. Default: 9:00 AM UTC daily.</p>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <Label>Enable RAG Evaluation</Label>
+                <p className="text-sm text-muted-foreground">Run LLM-as-judge evaluation on sampled responses</p>
+              </div>
+              <Switch
+                checked={config.evaluationEnabled ?? false}
+                onCheckedChange={(checked) => setConfig({ ...config, evaluationEnabled: checked })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Evaluation Sample Rate (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="5"
+                value={config.evaluationSampleRate ?? 10}
+                onChange={(e) => setConfig({ ...config, evaluationSampleRate: parseInt(e.target.value) })}
+              />
+              <p className="text-xs text-muted-foreground">Percentage of responses to evaluate. 0 = disabled, 100 = all.</p>
+            </div>
           </CardContent>
         </Card>
 
