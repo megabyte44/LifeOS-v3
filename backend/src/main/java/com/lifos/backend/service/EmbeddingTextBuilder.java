@@ -30,6 +30,10 @@ public class EmbeddingTextBuilder {
             case "goal_resource"       -> new EmbeddingMeta("goals",        "goal_resource",       0.70f, 0.3f, 0.5f);
             case "sub_goal"            -> new EmbeddingMeta("goals",        "sub_goal",            0.75f, 0.5f, 0.8f);
             case "workout_split"       -> new EmbeddingMeta("health",       "workout_split",       0.70f, 0.2f, 0.6f);
+            // Phase 5 additions — future feature source types
+            case "journal"             -> new EmbeddingMeta("personal",     "journal",             0.80f, 0.7f, 0.75f);
+            case "saved_link"          -> new EmbeddingMeta("knowledge",    "saved_link",          0.70f, 0.4f, 0.6f);
+            case "document"            -> new EmbeddingMeta("knowledge",    "document",            0.85f, 0.3f, 0.7f);
             default                    -> new EmbeddingMeta(null,           sourceType,            0.70f, 0.5f, 0.5f);
         };
     }

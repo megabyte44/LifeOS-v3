@@ -84,6 +84,69 @@ public class EmbeddingService {
         log.info("Stored embedding for {} {}", sourceType, sourceId);
     }
 
+    /**
+     * Embeds a long document using chunking when enabled in config.
+     *
+     * <p>If chunking is enabled and the text exceeds {@code chunkMaxChars}, the document
+     * is split into overlapping chunks. Old chunks for this source are deleted first to
+     * prevent stale data. Each chunk is stored as a separate {@link Embedding} row with
+     * {@code parentSourceId} pointing back to {@code sourceId}.
+     *
+     * <p>Falls back to single-embedding (legacy) path when chunking is disabled or the
+     * document is short enough to fit in one chunk.
+     */
+    @Transactional
+    public void embedChunkedDocument(String userUid, String sourceType, UUID sourceId, String text) {
+        if (text == null || text.isBlank()) return;
+
+        AiFoundationProperties.Chunking chunkCfg = aiFoundationProperties.getChunking();
+        EmbeddingTextBuilder.EmbeddingMeta meta = EmbeddingTextBuilder.metaFor(sourceType);
+
+        if (!chunkCfg.isEnableDocumentChunking() || text.length() <= chunkCfg.getChunkMaxChars()) {
+            embedAndStore(userUid, sourceType, sourceId, text,
+                    meta.domain(), meta.domainTag(), meta.quality(), meta.recency(), meta.importance());
+            return;
+        }
+
+        // Delete ALL existing chunk embeddings for this source (chunk_index >= 0)
+        embeddingRepository.deleteBySourceTypeAndSourceId(sourceType, sourceId);
+
+        List<DocumentChunker.Chunk> chunks = DocumentChunker.chunk(
+                text, chunkCfg.getChunkMaxChars(), chunkCfg.getChunkOverlapChars());
+
+        User user = userRepository.findById(userUid)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userUid));
+
+        for (DocumentChunker.Chunk chunk : chunks) {
+            String contentHash = computeHash(chunk.text());
+            float[] vector = openAiEmbeddingClient.getEmbedding(chunk.text());
+
+            Embedding embedding = Embedding.builder()
+                    .user(user)
+                    .sourceType(sourceType)
+                    .sourceId(UUID.randomUUID()) // unique row per chunk
+                    .parentSourceId(sourceId)
+                    .chunkIndex(chunk.index())
+                    .totalChunks(chunk.total())
+                    .chunkStartChar(chunk.startChar())
+                    .chunkEndChar(chunk.endChar())
+                    .contentHash(contentHash)
+                    .contentPreview(chunk.text().substring(0, Math.min(chunk.text().length(), 200)))
+                    .domain(meta.domain())
+                    .domainTag(meta.domainTag())
+                    .embeddingQualityScore(clamp(meta.quality()))
+                    .recencyWeight(clamp(meta.recency()))
+                    .importanceSignal(clamp(meta.importance()))
+                    .embedding(vector)
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .build();
+
+            embeddingRepository.save(embedding);
+        }
+        log.info("Stored {} chunks for {} {}", chunks.size(), sourceType, sourceId);
+    }
+
     @Transactional
     public void deleteBySource(String sourceType, UUID sourceId) {
         embeddingRepository.deleteBySourceTypeAndSourceId(sourceType, sourceId);

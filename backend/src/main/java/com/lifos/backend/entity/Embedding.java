@@ -56,6 +56,32 @@ public class Embedding {
     @Column(name = "last_used_in_context")
     private Instant lastUsedInContext;
 
+    // ── Document-chunking metadata ──────────────────────────────────────────
+    /** Position of this chunk within the parent document (0-based). */
+    @Column(name = "chunk_index")
+    @Builder.Default
+    private Integer chunkIndex = 0;
+
+    /** Total number of chunks for this source document. */
+    @Column(name = "total_chunks")
+    @Builder.Default
+    private Integer totalChunks = 1;
+
+    /**
+     * For chunk rows: the source_id of the original (parent) document.
+     * NULL for non-chunked embeddings.
+     */
+    @Column(name = "parent_source_id")
+    private UUID parentSourceId;
+
+    /** Character offset where this chunk starts in the original document text. */
+    @Column(name = "chunk_start_char")
+    private Integer chunkStartChar;
+
+    /** Character offset where this chunk ends in the original document text. */
+    @Column(name = "chunk_end_char")
+    private Integer chunkEndChar;
+
     @Column(name = "embedding")
     @JdbcTypeCode(SqlTypes.VECTOR)
     private float[] embedding;

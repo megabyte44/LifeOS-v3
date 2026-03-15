@@ -92,7 +92,8 @@ public class AiChatService {
 
         // Async memory extraction — only in chat_buddy mode, never blocks the response
         if ("chat_buddy".equals(mode) && response != null && !lastUserMsg.isBlank()) {
-            memoryExtractionService.extractAndStore(userUid, lastUserMsg, response.getResult());
+            memoryExtractionService.extractAndStore(userUid, lastUserMsg, response.getResult(),
+                    resolvedConversationId);
         }
 
         return response;
@@ -374,7 +375,8 @@ public class AiChatService {
                             userUid, req, provider, model, lastUserMsg, full, resolvedConversationId);
                 }
                 if (extractMemory && !lastUserMsg.isBlank()) {
-                    memoryExtractionService.extractAndStore(userUid, lastUserMsg, full);
+                    memoryExtractionService.extractAndStore(userUid, lastUserMsg, full,
+                            resolvedConversationId);
                 }
                 if (!isTemporary && !lastUserMsg.isBlank()) {
                     ragEvaluationService.evaluateAsync(userUid, lastUserMsg, full,

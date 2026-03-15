@@ -31,6 +31,7 @@ public class AiFoundationProperties {
     private final Streaming streaming = new Streaming();
     private final Rag rag = new Rag();
     private final Async async = new Async();
+    private final Chunking chunking = new Chunking();
 
     /** Embedding config — apiKey is read from the top-level openaiApiKey field */
     @Getter
@@ -69,7 +70,7 @@ public class AiFoundationProperties {
         /** Extract knowledge graph edges on entity save via LLM. */
         private boolean enableEdgeExtraction = false;
         /** Classify query intent to selectively inject structured context. */
-        private boolean enableQueryIntentClassification = false;
+        private boolean enableQueryIntentClassification = true;
         /** Use graph-boosted scoring in hybrid retrieval. */
         private boolean enableGraphBoostedScoring = false;
         /** Source types to include in vector search (empty = search all). */
@@ -78,6 +79,18 @@ public class AiFoundationProperties {
         private int graphMaxHops = 2;
         /** Weight of graph boost signal in hybrid scoring. */
         private float graphBoostWeight = 0.15f;
+    }
+
+    /** Document chunking config — controls how long documents are split before embedding. */
+    @Getter
+    @Setter
+    public static class Chunking {
+        /** When true, notes/docs longer than chunkMaxChars are split into overlapping chunks. */
+        private boolean enableDocumentChunking = true;
+        /** Maximum characters per chunk (~800 tokens for text-embedding-3-small). */
+        private int chunkMaxChars = 3200;
+        /** Overlap characters between consecutive chunks (~200 token equivalent). */
+        private int chunkOverlapChars = 400;
     }
 
     @Getter
