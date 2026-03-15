@@ -23,4 +23,6 @@ export {
   useAdminSystemSettings,
   useAdminAnnouncements,
   useAdminAbout,
+  useAdminDashboard,
+  useAdminAnalytics,
 } from './use-admin';

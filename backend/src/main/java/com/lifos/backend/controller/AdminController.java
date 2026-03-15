@@ -4,6 +4,7 @@ import com.lifos.backend.dto.*;
 import com.lifos.backend.security.SecurityUtils;
 import com.lifos.backend.service.AdminService;
 import com.lifos.backend.service.EmbeddingBackfillService;
+import com.lifos.backend.service.InsightGeneratorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +21,7 @@ public class AdminController {
 
     private final AdminService adminService;
     private final EmbeddingBackfillService embeddingBackfillService;
+    private final InsightGeneratorService insightGeneratorService;
 
     /** GET /api/admin/check — anyone authenticated can query this */
     @GetMapping("/check")
@@ -32,6 +34,31 @@ public class AdminController {
     @PreAuthorize("hasRole('ADMIN')")
     public List<UserStatsResponse> getUsers() {
         return adminService.getUsers();
+    }
+
+    /** PUT /api/admin/users/{uid}/role */
+    @PutMapping("/users/{uid}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateUserRole(@PathVariable String uid,
+                               @RequestBody UpdateUserRoleRequest req) {
+        adminService.updateUserRole(uid, req.getRole());
+    }
+
+    // ── Dashboard ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/dashboard")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AdminDashboardStatsResponse getDashboard() {
+        return adminService.getDashboardStats();
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/analytics")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AnalyticsResponse getAnalytics(@RequestParam(defaultValue = "30") int days) {
+        return adminService.getAnalytics(days);
     }
 
     // ── AI Config ─────────────────────────────────────────────────────────────
@@ -117,5 +144,19 @@ public class AdminController {
     public Map<String, String> backfillEmbeddings() {
         embeddingBackfillService.backfillAll();
         return Map.of("status", "queued", "message", "Backfill started in background");
+    }
+
+    // ── Proactive Insights ────────────────────────────────────────────────────
+
+    /**
+     * POST /api/admin/trigger-insights
+     * Manually fires the insight job for the calling user.
+     * Useful for testing without waiting for the daily scheduled run.
+     */
+    @PostMapping("/trigger-insights")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Map<String, String> triggerInsights() {
+        insightGeneratorService.triggerForUser(SecurityUtils.getCurrentUserUid());
+        return Map.of("status", "triggered", "message", "Insight generation started for your account");
     }
 }

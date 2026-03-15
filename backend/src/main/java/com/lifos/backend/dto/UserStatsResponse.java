@@ -14,4 +14,5 @@ public class UserStatsResponse {
     private long habitsCount;
     private long transactionsCount;
     private long aiMessagesCount;
+    private String role;
 }

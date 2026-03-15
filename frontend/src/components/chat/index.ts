@@ -8,6 +8,7 @@ export {
   CONTEXT_SOURCES,
   SUGGESTED_PROMPTS,
   groupSessionsByDate,
+  groupConversationsByDate,
   normalizePersonality,
 } from './chat-constants';
-export type { ChatMessage, ChatSession } from './chat-constants';
+export type { ChatMessage, ChatSession, ConversationSummary } from './chat-constants';

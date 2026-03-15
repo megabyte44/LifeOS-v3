@@ -5,12 +5,28 @@ import type {
   Announcement,
   AboutPageContent,
   UserStats,
+  AdminDashboardStats,
+  AdminAnalytics,
 } from '@/types';
 
 export const adminApiService = {
   // ----- Users -----
   async getUsers(): Promise<UserStats[]> {
     return apiClient.get<UserStats[]>('/admin/users');
+  },
+
+  async updateUserRole(uid: string, role: string): Promise<void> {
+    return apiClient.put<void>(`/admin/users/${uid}/role`, { role });
+  },
+
+  // ----- Dashboard -----
+  async getDashboardStats(): Promise<AdminDashboardStats> {
+    return apiClient.get<AdminDashboardStats>('/admin/dashboard');
+  },
+
+  // ----- Analytics -----
+  async getAnalytics(days: number): Promise<AdminAnalytics> {
+    return apiClient.get<AdminAnalytics>(`/admin/analytics?days=${days}`);
   },
 
   // ----- AI Config -----

@@ -11,6 +11,8 @@ public class AiChatRequest {
     private String personality;    // 'casual' | 'professional'
     private String model;          // optional override
     private String mode;           // 'normal' (default) | 'chat_buddy'
+    private String conversationId; // UUID of existing conversation, null = create new
+    private Boolean temporary;     // true = skip persistence (temporary chat)
 
     @Data
     @JsonIgnoreProperties(ignoreUnknown = true)

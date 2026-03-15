@@ -14,71 +14,74 @@ import {
   X,
   Brain,
   PanelLeftClose,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   AI_PERSONALITIES,
-  type ChatSession,
-  groupSessionsByDate,
+  type ConversationSummary,
+  groupConversationsByDate,
 } from './chat-constants';
 
 interface ChatSidebarProps {
-  sessions: ChatSession[];
-  currentSessionId: string | null;
+  conversations: ConversationSummary[];
+  currentConversationId: string | null;
+  isLoadingMessages: boolean;
   isTemporaryChat: boolean;
   isMobileOpen: boolean;
   sidebarSearch: string;
   onSearchChange: (v: string) => void;
   onNewChat: () => void;
   onToggleTemp: () => void;
-  onSelectSession: (id: string) => void;
-  onDeleteSession: (id: string) => void;
-  onRenameSession: (id: string, title: string) => void;
+  onSelectConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => void;
+  onRenameConversation: (id: string, title: string) => void;
   onClearAll: () => void;
   onCloseMobile: () => void;
 }
 
 export function ChatSidebar({
-  sessions,
-  currentSessionId,
+  conversations,
+  currentConversationId,
+  isLoadingMessages,
   isTemporaryChat,
   isMobileOpen,
   sidebarSearch,
   onSearchChange,
   onNewChat,
   onToggleTemp,
-  onSelectSession,
-  onDeleteSession,
-  onRenameSession,
+  onSelectConversation,
+  onDeleteConversation,
+  onRenameConversation,
   onClearAll,
   onCloseMobile,
 }: ChatSidebarProps) {
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
 
-  const nonTempSessions = sessions.filter((s) => s.id !== 'temp');
-  const filteredSessions = sidebarSearch.trim()
-    ? nonTempSessions.filter((s) =>
-        s.title.toLowerCase().includes(sidebarSearch.toLowerCase())
+  const filteredConversations = sidebarSearch.trim()
+    ? conversations.filter((c) =>
+        c.title.toLowerCase().includes(sidebarSearch.toLowerCase())
       )
-    : nonTempSessions;
-  const groupedSessions = groupSessionsByDate(filteredSessions);
+    : conversations;
+
+  const groupedConversations = groupConversationsByDate(filteredConversations);
 
   const startRename = (id: string, title: string) => {
-    setEditingSessionId(id);
+    setEditingId(id);
     setEditingTitle(title);
   };
 
   const saveRename = (id: string) => {
     if (editingTitle.trim()) {
-      onRenameSession(id, editingTitle.trim());
+      onRenameConversation(id, editingTitle.trim());
     }
-    setEditingSessionId(null);
+    setEditingId(null);
     setEditingTitle('');
   };
 
   const cancelRename = () => {
-    setEditingSessionId(null);
+    setEditingId(null);
     setEditingTitle('');
   };
 
@@ -150,14 +153,14 @@ export function ChatSidebar({
           </div>
         </div>
 
-        {/* Session list */}
+        {/* Conversation list */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 min-h-0 chat-scrollbar">
-          {nonTempSessions.length === 0 ? (
+          {conversations.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-20 text-center">
               <MessageCircle className="h-6 w-6 text-muted-foreground/20" />
               <p className="text-xs text-muted-foreground/40">No conversations yet</p>
             </div>
-          ) : groupedSessions.length === 0 ? (
+          ) : groupedConversations.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-xs text-muted-foreground/40">
                 No results for &ldquo;{sidebarSearch}&rdquo;
@@ -165,7 +168,7 @@ export function ChatSidebar({
             </div>
           ) : (
             <div className="space-y-3 py-1">
-              {groupedSessions.map((group) => (
+              {groupedConversations.map((group) => (
                 <div key={group.label}>
                   <div className="flex items-center gap-1.5 px-2 mb-1">
                     <Clock className="h-2.5 w-2.5 text-muted-foreground/30" />
@@ -174,12 +177,12 @@ export function ChatSidebar({
                     </span>
                   </div>
                   <div className="space-y-px">
-                    {group.items.map((session) => {
-                      const p = AI_PERSONALITIES[session.personality];
-                      const isActive = currentSessionId === session.id;
+                    {group.items.map((conv) => {
+                      const p = AI_PERSONALITIES[conv.personality];
+                      const isActive = currentConversationId === conv.id;
                       return (
                         <div
-                          key={session.id}
+                          key={conv.id}
                           className={cn(
                             'group relative flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors duration-100',
                             isActive
@@ -187,9 +190,8 @@ export function ChatSidebar({
                               : 'hover:bg-background/50 dark:hover:bg-card/30'
                           )}
                           onClick={() => {
-                            if (editingSessionId === session.id) return;
-                            onSelectSession(session.id);
-                            onCloseMobile();
+                            if (editingId === conv.id) return;
+                            onSelectConversation(conv.id);
                           }}
                         >
                           <div
@@ -201,7 +203,7 @@ export function ChatSidebar({
                           />
 
                           <div className="flex-1 min-w-0">
-                            {editingSessionId === session.id ? (
+                            {editingId === conv.id ? (
                               <div
                                 className="flex items-center gap-1"
                                 onClick={(e) => e.stopPropagation()}
@@ -211,12 +213,12 @@ export function ChatSidebar({
                                   onChange={(e) => setEditingTitle(e.target.value)}
                                   className="flex-1 min-w-0 text-xs bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/40"
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter') saveRename(session.id);
+                                    if (e.key === 'Enter') saveRename(conv.id);
                                     if (e.key === 'Escape') cancelRename();
                                   }}
                                   autoFocus
                                 />
-                                <button onClick={() => saveRename(session.id)} className="p-0.5 text-muted-foreground hover:text-primary"><Check className="h-3 w-3" /></button>
+                                <button onClick={() => saveRename(conv.id)} className="p-0.5 text-muted-foreground hover:text-primary"><Check className="h-3 w-3" /></button>
                                 <button onClick={cancelRename} className="p-0.5 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
                               </div>
                             ) : (
@@ -224,25 +226,30 @@ export function ChatSidebar({
                                 'text-[13px] truncate leading-snug',
                                 isActive ? 'text-foreground font-medium' : 'text-foreground/70'
                               )}>
-                                {session.title}
+                                {conv.title}
                               </p>
                             )}
                           </div>
 
-                          {editingSessionId !== session.id && (
+                          {/* Loading spinner for the active conversation being loaded */}
+                          {isActive && isLoadingMessages && editingId !== conv.id && (
+                            <Loader2 className="h-3 w-3 text-muted-foreground/40 animate-spin shrink-0" />
+                          )}
+
+                          {editingId !== conv.id && !(isActive && isLoadingMessages) && (
                             <div
                               className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <button
                                 className="p-1 rounded hover:bg-muted text-muted-foreground/40 hover:text-foreground transition-colors"
-                                onClick={() => startRename(session.id, session.title)}
+                                onClick={() => startRename(conv.id, conv.title)}
                               >
                                 <Edit2 className="h-3 w-3" />
                               </button>
                               <button
                                 className="p-1 rounded hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive transition-colors"
-                                onClick={() => onDeleteSession(session.id)}
+                                onClick={() => onDeleteConversation(conv.id)}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -260,7 +267,7 @@ export function ChatSidebar({
 
         {/* Footer */}
         <div className="shrink-0 p-2 space-y-1 border-t border-border/20">
-          {nonTempSessions.length > 0 && (
+          {conversations.length > 0 && (
             <button
               onClick={onClearAll}
               className="w-full flex items-center gap-2 h-8 px-3 rounded-lg text-[12px] text-muted-foreground/40 hover:text-destructive hover:bg-destructive/5 transition-colors"

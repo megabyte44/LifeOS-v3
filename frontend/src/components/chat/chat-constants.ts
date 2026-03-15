@@ -112,8 +112,21 @@ export interface ChatSession {
   title: string;
   messages: ChatMessage[];
   personality: keyof typeof AI_PERSONALITIES;
+  mode?: 'normal' | 'chat_buddy';
   customInstructions?: string;
   createdAt: Date;
+  lastMessageAt?: Date;
+  messagesLoaded?: boolean;
+}
+
+/** Lightweight conversation metadata — used for the sidebar list (no messages). */
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  personality: keyof typeof AI_PERSONALITIES;
+  mode: 'normal' | 'chat_buddy';
+  createdAt: Date;
+  lastMessageAt: Date;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -138,6 +151,30 @@ export function groupSessionsByDate(sessions: ChatSession[]) {
     else if (d >= yesterdayStart) groups[1].items.push(s);
     else if (d >= weekStart) groups[2].items.push(s);
     else groups[3].items.push(s);
+  });
+
+  return groups.filter((g) => g.items.length > 0);
+}
+
+export function groupConversationsByDate(conversations: ConversationSummary[]) {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+  const weekStart = new Date(todayStart.getTime() - 6 * 86400000);
+
+  const groups: { label: string; items: ConversationSummary[] }[] = [
+    { label: 'Today', items: [] },
+    { label: 'Yesterday', items: [] },
+    { label: 'Last 7 days', items: [] },
+    { label: 'Earlier', items: [] },
+  ];
+
+  conversations.forEach((c) => {
+    const d = new Date(c.lastMessageAt);
+    if (d >= todayStart) groups[0].items.push(c);
+    else if (d >= yesterdayStart) groups[1].items.push(c);
+    else if (d >= weekStart) groups[2].items.push(c);
+    else groups[3].items.push(c);
   });
 
   return groups.filter((g) => g.items.length > 0);

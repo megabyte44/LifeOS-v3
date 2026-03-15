@@ -12,6 +12,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,6 +27,7 @@ public class AdminService {
     private final TodoRepository todoRepo;
     private final HabitRepository habitRepo;
     private final TransactionRepository transactionRepo;
+    private final AiChatHistoryRepository aiChatHistoryRepo;
     private final AiConfigurationRepository aiConfigRepo;
     private final AiConfigurationResolver aiConfigurationResolver;
     private final SystemSettingsRepository systemSettingsRepo;
@@ -55,7 +58,8 @@ public class AdminService {
             r.setTodosCount(todoRepo.countByUserUid(u.getUid()));
             r.setHabitsCount(habitRepo.countByUserUid(u.getUid()));
             r.setTransactionsCount(transactionRepo.countByUserUid(u.getUid()));
-            r.setAiMessagesCount(0L);
+            r.setAiMessagesCount(aiChatHistoryRepo.countByUserUid(u.getUid()));
+            r.setRole(u.getRole());
             return r;
         }).collect(Collectors.toList());
     }
@@ -181,10 +185,64 @@ public class AdminService {
         return toAboutResponse(aboutPageRepo.save(row));
     }
 
+    // ── Dashboard ─────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public AdminDashboardStatsResponse getDashboardStats() {
+        AdminDashboardStatsResponse r = new AdminDashboardStatsResponse();
+        r.setTotalUsers(userRepo.count());
+        r.setTotalAiMessages(aiChatHistoryRepo.count());
+        return r;
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public AnalyticsResponse getAnalytics(int days) {
+        Instant since = Instant.now().minus(days, ChronoUnit.DAYS);
+
+        List<DailyMessageCount> daily = aiChatHistoryRepo.countMessagesByDay(since)
+            .stream()
+            .map(row -> new DailyMessageCount(row[0].toString(), ((Number) row[1]).longValue()))
+            .collect(Collectors.toList());
+
+        List<UserMessageCount> topUsers = aiChatHistoryRepo.countMessagesByUser(since)
+            .stream()
+            .map(row -> new UserMessageCount(
+                row[0].toString(),
+                row[1].toString(),
+                row[2] != null ? row[2].toString() : null,
+                ((Number) row[3]).longValue()))
+            .collect(Collectors.toList());
+
+        long total = daily.stream().mapToLong(DailyMessageCount::getCount).sum();
+        double avg = days > 0 ? (double) total / days : 0.0;
+
+        AnalyticsResponse res = new AnalyticsResponse();
+        res.setDailyMessages(daily);
+        res.setTopUsers(topUsers);
+        res.setTotalMessages(total);
+        res.setAvgPerDay(avg);
+        return res;
+    }
+
+    // ── User Role Management ───────────────────────────────────────────────────
+
+    @Transactional
+    public void updateUserRole(String uid, String role) {
+        if (!List.of("user", "admin").contains(role)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role: " + role);
+        }
+        User u = userRepo.findById(uid)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        log.info("Admin updating role for user [{}] to '{}'", uid, role);
+        u.setRole(role);
+        userRepo.save(u);
+    }
+
     // ── Mappers ───────────────────────────────────────────────────────────────
 
     private AiConfigurationResponse toAiConfigResponse(AiConfiguration c) {
-        AiConfigurationResponse r = new AiConfigurationResponse();
         r.setId(c.getId());
         r.setSystemInstructions(c.getSystemInstructions());
         r.setDefaultPersonality(c.getDefaultPersonality());

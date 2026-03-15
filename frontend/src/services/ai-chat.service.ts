@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { AiChatRequest, AiChatResponse } from './mock/ai-chat.mock';
+import type { AiChatRequest, AiChatResponse, AiConversationSummary } from './mock/ai-chat.mock';
 import type { ConversationMemoryItem } from '@/types';
 
 export interface AiChatHistoryItem {
@@ -33,6 +33,28 @@ export const aiChatApiService = {
   async deleteMemory(id: string): Promise<void> {
     return apiClient.delete<void>(`/ai/memories/${id}`);
   },
+
+  // ── Conversation management ──────────────────────────────────────────────
+
+  async listConversations(): Promise<AiConversationSummary[]> {
+    return apiClient.get<AiConversationSummary[]>('/ai/conversations');
+  },
+
+  async getConversationMessages(conversationId: string): Promise<AiChatHistoryItem[]> {
+    return apiClient.get<AiChatHistoryItem[]>(`/ai/conversations/${conversationId}/messages`);
+  },
+
+  async renameConversation(conversationId: string, title: string): Promise<AiConversationSummary> {
+    return apiClient.patch<AiConversationSummary>(`/ai/conversations/${conversationId}`, { title });
+  },
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    return apiClient.delete<void>(`/ai/conversations/${conversationId}`);
+  },
+
+  async deleteAllConversations(): Promise<void> {
+    return apiClient.delete<void>('/ai/conversations');
+  },
 };
 
-export type { AiChatRequest, AiChatResponse };
+export type { AiChatRequest, AiChatResponse, AiConversationSummary };
