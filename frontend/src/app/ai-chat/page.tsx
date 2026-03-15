@@ -325,7 +325,8 @@ function AiChatContent() {
 
             // Handle conversation_id meta-event (new or existing conversation)
             if (currentEventName === 'conversation_id') {
-              const newId = rawData;
+              let newId = rawData;
+              try { const parsed = JSON.parse(rawData); if (typeof parsed === 'string') newId = parsed; } catch {}
               setCurrentConversationId(newId);
               sessionStorage.setItem('lastConversationId', newId);
 
