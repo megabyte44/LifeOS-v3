@@ -7,7 +7,10 @@ import { getAuth } from 'firebase/auth';
 // ---------------------------------------------------------------------------
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') ?? 'http://localhost:8000';
+  (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000')
+    .replace(/\/+$/, '')
+    // Accept either http://host or http://host/api in env config.
+    .replace(/\/api$/i, '');
 
 const IS_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === 'true';
 
