@@ -23,6 +23,7 @@ import reactor.core.publisher.Flux;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -35,6 +36,8 @@ public class AiChatService {
     private final PromptAssemblyService promptAssemblyService;
     private final MemoryExtractionService memoryExtractionService;
     private final AiChatHistoryService aiChatHistoryService;
+    private final AiConversationService aiConversationService;
+    private final RagEvaluationService ragEvaluationService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
     private final WebClient webClient;
@@ -54,6 +57,13 @@ public class AiChatService {
         String mode = req.getMode() != null ? req.getMode() : "normal";
         log.info("AI chat request — provider={} model={} mode={}", provider, model, mode);
 
+        // Resolve or create conversation synchronously before the AI call
+        String lastUserMsg = extractLatestUserMessage(req);
+        final boolean isTemporary = Boolean.TRUE.equals(req.getTemporary());
+        UUID resolvedConversationId = isTemporary ? null :
+                aiConversationService.ensureConversation(
+                        req.getConversationId(), userUid, req.getPersonality(), mode, lastUserMsg);
+
         // Build system prompt based on mode
         String sysPrompt = buildSystemPrompt(req, config, userUid, mode);
 
@@ -67,22 +77,22 @@ public class AiChatService {
         };
 
         if (response != null) {
-            String lastUserMsg = extractLatestUserMessage(req);
-            aiChatHistoryService.saveExchange(
-                    userUid,
-                    req,
-                    provider,
-                    response.getModel(),
-                    lastUserMsg,
-                    response.getResult());
+            if (!isTemporary) {
+                response.setConversationId(resolvedConversationId.toString());
+                aiChatHistoryService.saveExchange(
+                        userUid,
+                        req,
+                        provider,
+                        response.getModel(),
+                        lastUserMsg,
+                        response.getResult(),
+                        resolvedConversationId);
+            }
         }
 
         // Async memory extraction — only in chat_buddy mode, never blocks the response
-        if ("chat_buddy".equals(mode) && response != null) {
-            String lastUserMsg = extractLatestUserMessage(req);
-            if (!lastUserMsg.isBlank()) {
-                memoryExtractionService.extractAndStore(userUid, lastUserMsg, response.getResult());
-            }
+        if ("chat_buddy".equals(mode) && response != null && !lastUserMsg.isBlank()) {
+            memoryExtractionService.extractAndStore(userUid, lastUserMsg, response.getResult());
         }
 
         return response;
@@ -92,7 +102,6 @@ public class AiChatService {
 
     private String buildSystemPrompt(AiChatRequest req, AiConfiguration config,
                                      String userUid, String mode) {
-        // Base personality prompt
         String personality = req.getPersonality() != null ? req.getPersonality() : config.getDefaultPersonality();
         Map<String, Object> sysInstructions = config.getSystemInstructions();
         String basePrompt = personality.equals("professional")
@@ -106,14 +115,12 @@ public class AiChatService {
             base = basePrompt;
         }
 
-        // Extract the user's latest message to drive vector similarity search
         String userQuery = req.getMessages() == null ? "" : req.getMessages().stream()
                 .filter(m -> "user".equals(m.getRole()))
                 .reduce((a, b) -> b)
                 .map(AiChatRequest.AiMessage::getContent)
                 .orElse("");
 
-        // Use PromptAssemblyService to inject structured context (profile, habits, goals, etc.)
         return promptAssemblyService.buildFullSystemPrompt(base, userUid, mode, userQuery);
     }
 
@@ -167,7 +174,6 @@ public class AiChatService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "API key for " + provider + " is not configured.");
         }
 
-        // Final safety-net: never send a blank model to the provider.
         String resolvedModel = (model == null || model.isBlank())
                 ? (provider.equals("openrouter") ? "openai/gpt-4o-mini" : "gpt-4o-mini")
                 : model;
@@ -290,20 +296,44 @@ public class AiChatService {
         double topP = toDouble(modelCfg.getOrDefault("topP", 1.0));
 
         String mode = req.getMode() != null ? req.getMode() : "normal";
+        final String personality = req.getPersonality() != null ? req.getPersonality() : config.getDefaultPersonality();
         log.info("AI stream request — provider={} model={} mode={}", provider, model, mode);
+
+        // Resolve or create conversation synchronously before streaming starts
+        final String lastUserMsg = extractLatestUserMessage(req);
+        final boolean isTemporary = Boolean.TRUE.equals(req.getTemporary());
+        final UUID resolvedConversationId;
+
+        if (isTemporary) {
+            resolvedConversationId = null;
+        } else {
+            UUID tmpId;
+            try {
+                tmpId = aiConversationService.ensureConversation(
+                        req.getConversationId(), userUid, req.getPersonality(), mode, lastUserMsg);
+            } catch (Exception e) {
+                try {
+                    emitter.send(SseEmitter.event().name("error").data(e.getMessage()));
+                } catch (IOException ignored) {}
+                emitter.completeWithError(e);
+                return;
+            }
+            // Send conversation_id as first SSE event so the frontend can wire it up immediately
+            try {
+                emitter.send(SseEmitter.event().name("conversation_id").data(tmpId.toString()));
+            } catch (IOException e) {
+                emitter.completeWithError(e);
+                return;
+            }
+            resolvedConversationId = tmpId;
+        }
 
         String sysPrompt = buildSystemPrompt(req, config, userUid, mode);
 
-        // For chat_buddy: capture the last user message + accumulate the full response for extraction
         final boolean extractMemory = "chat_buddy".equals(mode);
-        final String lastUserMsg = extractMemory && req.getMessages() != null
-                ? req.getMessages().stream()
-                        .filter(m -> "user".equals(m.getRole()))
-                        .reduce((a, b) -> b)
-                        .map(AiChatRequest.AiMessage::getContent)
-                        .orElse("")
-                : "";
-        final StringBuilder fullResponse = extractMemory ? new StringBuilder() : null;
+        // Always accumulate the full response for history saving
+        final StringBuilder fullResponse = new StringBuilder();
+        final long streamStartTime = System.currentTimeMillis();
 
         Flux<String> tokenFlux = switch (provider) {
             case "gemini" -> streamGemini(req.getMessages(), sysPrompt, model,
@@ -317,7 +347,7 @@ public class AiChatService {
         tokenFlux.subscribe(
             token -> {
                 try {
-                    if (fullResponse != null) fullResponse.append(token);
+                    fullResponse.append(token);
                     // Encode newlines so SSE framing doesn't eat them
                     emitter.send(SseEmitter.event().data(token.replace("\n", "\\n")));
                 } catch (IOException e) {
@@ -338,18 +368,17 @@ public class AiChatService {
                 } catch (IOException e) {
                     emitter.completeWithError(e);
                 }
-                String full = fullResponse != null ? fullResponse.toString() : "";
-                aiChatHistoryService.saveExchange(
-                        userUid,
-                        req,
-                        provider,
-                        model,
-                        lastUserMsg,
-                        full);
-                // Trigger async memory extraction after stream completes
-                if (extractMemory && fullResponse != null && !lastUserMsg.isBlank()) {
-                    memoryExtractionService.extractAndStore(
-                            userUid, lastUserMsg, fullResponse.toString());
+                String full = fullResponse.toString();
+                if (!isTemporary) {
+                    aiChatHistoryService.saveExchange(
+                            userUid, req, provider, model, lastUserMsg, full, resolvedConversationId);
+                }
+                if (extractMemory && !lastUserMsg.isBlank()) {
+                    memoryExtractionService.extractAndStore(userUid, lastUserMsg, full);
+                }
+                if (!isTemporary && !lastUserMsg.isBlank()) {
+                    ragEvaluationService.evaluateAsync(userUid, lastUserMsg, full,
+                            System.currentTimeMillis() - streamStartTime, model, personality);
                 }
             }
         );

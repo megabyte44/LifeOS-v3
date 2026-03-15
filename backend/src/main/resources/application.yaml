@@ -85,3 +85,5 @@ ai:
     max-pool-size: 8
     queue-capacity: 100
     thread-name-prefix: ai-
+  insights:
+    cron: ${AI_INSIGHTS_CRON:0 0 20 * * *}

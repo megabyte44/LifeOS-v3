@@ -52,6 +52,10 @@ public class AiChatHistory {
     @Column(name = "response_metadata", columnDefinition = "jsonb")
     private JsonNode responseMetadata;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "conversation_id", nullable = true)
+    private AiConversation conversation;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

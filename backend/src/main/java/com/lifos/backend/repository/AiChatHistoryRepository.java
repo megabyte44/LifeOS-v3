@@ -16,4 +16,8 @@ public interface AiChatHistoryRepository extends JpaRepository<AiChatHistory, UU
     @Modifying
     @Query("DELETE FROM AiChatHistory h WHERE h.user.uid = :userUid")
     void deleteAllByUserUid(@Param("userUid") String userUid);
+
+    @Query("SELECT h FROM AiChatHistory h WHERE h.conversation.id = :conversationId " +
+           "ORDER BY h.createdAt ASC")
+    List<AiChatHistory> findByConversationIdOrderByCreatedAtAsc(@Param("conversationId") UUID conversationId);
 }

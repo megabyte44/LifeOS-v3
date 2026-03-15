@@ -17,16 +17,22 @@ import {
   AI_PERSONALITIES,
   normalizePersonality,
 } from '@/components/chat';
-import type { ChatMessage, ChatSession } from '@/components/chat';
+import type { ChatMessage, ConversationSummary } from '@/components/chat';
 
 function AiChatContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
-  // ── State ──
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  // ── Sidebar state (lightweight metadata only) ──
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+
+  // ── Active chat state ──
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+
+  // ── Input / UI state ──
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -39,7 +45,6 @@ function AiChatContent() {
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [aiSettings] = useState({
-    defaultPersonality: 'casual' as keyof typeof AI_PERSONALITIES,
     preferredModel: '',
     enableContextMemory: true,
     maxContextLength: 10,
@@ -49,50 +54,72 @@ function AiChatContent() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  const CLOUD_SESSION_ID = 'cloud-history';
-
-  // ── Load server history ──
-  const loadServerHistory = useCallback(async () => {
+  // ── Load conversation list on mount ──
+  const loadConversations = useCallback(async () => {
     if (!user) {
-      setSessions([]);
-      setCurrentSessionId(null);
+      setConversations([]);
       return;
     }
     try {
-      const history = await aiChatService.getHistory(200);
-      if (!history.length) {
-        setSessions((prev) => prev.filter((s) => s.id === 'temp'));
-        if (!isTemporaryChat) setCurrentSessionId(null);
-        return;
+      const summaries = await aiChatService.listConversations();
+      const mapped: ConversationSummary[] = summaries.map((s) => ({
+        id: s.id,
+        title: s.title,
+        personality: normalizePersonality(s.personality),
+        mode: (s.mode === 'chat_buddy' ? 'chat_buddy' : 'normal') as 'normal' | 'chat_buddy',
+        createdAt: new Date(s.createdAt),
+        lastMessageAt: new Date(s.lastMessageAt),
+      }));
+      setConversations(mapped);
+
+      // Restore last-opened conversation from sessionStorage
+      const lastId = sessionStorage.getItem('lastConversationId');
+      if (lastId && mapped.some((c) => c.id === lastId)) {
+        await selectConversationById(lastId, mapped);
       }
-      const chronological = [...history].reverse();
-      const allMessages: ChatMessage[] = chronological.flatMap((item) => {
+    } catch (err: any) {
+      toast({ title: 'Failed to load conversations', description: err?.message, variant: 'destructive' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  useEffect(() => { void loadConversations(); }, [loadConversations]);
+
+  // ── Select and lazy-load a conversation ──
+  const selectConversationById = useCallback(async (
+    id: string,
+    convList?: ConversationSummary[]
+  ) => {
+    const list = convList ?? conversations;
+    const conv = list.find((c) => c.id === id);
+    if (!conv) return;
+
+    setCurrentConversationId(id);
+    setMessages([]);
+    setMessagesLoading(true);
+    setIsTemporaryChat(false);
+    setSelectedPersonality(conv.personality);
+    setChatMode(conv.mode ?? 'normal');
+    setIsMobileSidebarOpen(false);
+
+    try {
+      const items = await aiChatService.getConversationMessages(id);
+      const flatMessages: ChatMessage[] = items.flatMap((item) => {
         const ts = new Date(item.createdAt);
         return [
           { id: `${item.id}-u`, role: 'user' as const, content: item.userMessage, timestamp: ts },
           { id: `${item.id}-a`, role: 'assistant' as const, content: item.assistantMessage, timestamp: ts },
         ];
       });
-      const latestItem = chronological[chronological.length - 1];
-      const cloudSession: ChatSession = {
-        id: CLOUD_SESSION_ID,
-        title: 'Cloud Chat History',
-        messages: allMessages,
-        personality: normalizePersonality(latestItem?.personality),
-        createdAt: new Date(chronological[0].createdAt),
-      };
-      setSessions((prev) => {
-        const temp = prev.find((s) => s.id === 'temp');
-        return temp ? [temp, cloudSession] : [cloudSession];
-      });
-      if (!isTemporaryChat) setCurrentSessionId(CLOUD_SESSION_ID);
-    } catch (error: any) {
-      console.error('Failed to load cloud chat history:', error);
-      toast({ title: 'History Sync Failed', description: error?.message || 'Could not load cloud chat history.', variant: 'destructive' });
+      setMessages(flatMessages);
+    } catch (err: any) {
+      toast({ title: 'Failed to load messages', description: err?.message, variant: 'destructive' });
+    } finally {
+      setMessagesLoading(false);
+      sessionStorage.setItem('lastConversationId', id);
     }
-  }, [user, isTemporaryChat, toast]);
-
-  useEffect(() => { void loadServerHistory(); }, [loadServerHistory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, toast]);
 
   // ── Override AppLayout for chat ──
   useEffect(() => {
@@ -116,31 +143,16 @@ function AiChatContent() {
     };
   }, []);
 
-  const currentSession = sessions.find((s) => s.id === currentSessionId);
-
   // Scroll to bottom on new messages
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
-  }, [currentSession?.messages, currentSession?.messages?.length]);
-
-  useEffect(() => {
-    if (currentSession?.personality) setSelectedPersonality(currentSession.personality);
-  }, [currentSession?.personality]);
-
-  useEffect(() => {
-    const p = searchParams?.get('personality');
-    if (p && p in AI_PERSONALITIES) {
-      setSelectedPersonality(p as keyof typeof AI_PERSONALITIES);
-      setTimeout(() => createNewSession(), 100);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [messages.length]);
 
   useEffect(() => {
     if (!isLoading && inputRef.current) inputRef.current.focus();
-  }, [currentSessionId, isLoading, currentSession?.messages?.length]);
+  }, [currentConversationId, isLoading, messages.length]);
 
   // Scroll position tracking
   useEffect(() => {
@@ -154,32 +166,62 @@ function AiChatContent() {
     return () => container.removeEventListener('scroll', onScroll);
   }, []);
 
-  // ── Session actions ──
-  const createNewSession = () => {
-    const p = selectedPersonality;
-    const s: ChatSession = { id: `session-${Date.now()}`, title: `Chat with ${AI_PERSONALITIES[p].name}`, messages: [], personality: p, createdAt: new Date() };
-    setSessions((prev) => [s, ...prev]);
-    setCurrentSessionId(s.id);
+  useEffect(() => {
+    const p = searchParams?.get('personality');
+    if (p && p in AI_PERSONALITIES) {
+      setSelectedPersonality(p as keyof typeof AI_PERSONALITIES);
+      handleNewChat();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // ── Chat actions ──
+  const handleNewChat = () => {
+    setCurrentConversationId(null);
+    setMessages([]);
     setIsTemporaryChat(false);
     setIsMobileSidebarOpen(false);
+    sessionStorage.removeItem('lastConversationId');
   };
 
-  const deleteSession = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    if (currentSessionId === id) setCurrentSessionId(null);
-    toast({ title: 'Chat Deleted', description: 'Session removed.' });
-  };
-
-  const clearAllSessions = async () => {
-    if (!confirm('Clear all chat history? This cannot be undone.')) return;
+  const handleDeleteConversation = async (id: string) => {
     try {
-      await aiChatService.clearHistory();
-      setSessions((prev) => prev.filter((s) => s.id === 'temp'));
-      setCurrentSessionId(isTemporaryChat ? 'temp' : null);
-      toast({ title: 'Cloud Chat History Cleared' });
-    } catch (error: any) {
-      toast({ title: 'Clear Failed', description: error?.message || 'Could not clear cloud chat history.', variant: 'destructive' });
+      await aiChatService.deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (currentConversationId === id) handleNewChat();
+      toast({ title: 'Chat Deleted' });
+    } catch (err: any) {
+      toast({ title: 'Delete Failed', description: err?.message, variant: 'destructive' });
     }
+  };
+
+  const handleClearAll = async () => {
+    if (!confirm('Clear all conversations? This cannot be undone.')) return;
+    try {
+      await aiChatService.deleteAllConversations();
+      setConversations([]);
+      handleNewChat();
+      toast({ title: 'All conversations cleared' });
+    } catch (err: any) {
+      toast({ title: 'Clear Failed', description: err?.message, variant: 'destructive' });
+    }
+  };
+
+  const handleRenameConversation = async (id: string, newTitle: string) => {
+    try {
+      await aiChatService.renameConversation(id, newTitle);
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: newTitle } : c)));
+    } catch (err: any) {
+      toast({ title: 'Rename Failed', description: err?.message, variant: 'destructive' });
+    }
+  };
+
+  const toggleTemporaryChat = () => {
+    setIsTemporaryChat((p) => !p);
+    setCurrentConversationId(null);
+    setMessages([]);
+    setIsMobileSidebarOpen(false);
+    sessionStorage.removeItem('lastConversationId');
   };
 
   const copyMessage = (msgId: string, content: string) => {
@@ -189,17 +231,6 @@ function AiChatContent() {
     toast({ title: 'Copied!' });
   };
 
-  const renameSession = (id: string, newTitle: string) => {
-    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s)));
-  };
-
-  const toggleTemporaryChat = () => {
-    setIsTemporaryChat((p) => !p);
-    setCurrentSessionId(null);
-    setSessions((prev) => prev.filter((s) => s.id !== 'temp'));
-    setIsMobileSidebarOpen(false);
-  };
-
   const scrollToBottom = () => {
     messagesContainerRef.current?.scrollTo({ top: messagesContainerRef.current.scrollHeight, behavior: 'smooth' });
   };
@@ -207,43 +238,31 @@ function AiChatContent() {
   // ── Send message ──
   const sendMessage = async () => {
     if (!message.trim() || isLoading) return;
-    if (!user) { toast({ title: 'Not Authenticated', description: 'You need to be logged in to chat.', variant: 'destructive' }); return; }
-
-    let session = currentSession;
-    if (!session && !isTemporaryChat) {
-      const ns: ChatSession = { id: `session-${Date.now()}`, title: `Chat with ${AI_PERSONALITIES[selectedPersonality].name}`, messages: [], personality: selectedPersonality, createdAt: new Date() };
-      setSessions((prev) => [ns, ...prev]);
-      setCurrentSessionId(ns.id);
-      session = ns;
+    if (!user) {
+      toast({ title: 'Not Authenticated', description: 'You need to be logged in to chat.', variant: 'destructive' });
+      return;
     }
 
-    const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: 'user', content: message.trim(), timestamp: new Date() };
-    const effectiveId = isTemporaryChat ? 'temp' : session!.id;
+    const userMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: message.trim(),
+      timestamp: new Date(),
+    };
 
-    if (isTemporaryChat) {
-      if (!currentSession) {
-        const tempSession: ChatSession = { id: 'temp', title: 'Temporary Chat', messages: [userMsg], personality: selectedPersonality, createdAt: new Date() };
-        setSessions(() => [tempSession]);
-        setCurrentSessionId('temp');
-        session = tempSession;
-      } else {
-        setSessions((prev) => prev.map((s) => s.id === 'temp' ? { ...s, messages: [...s.messages, userMsg] } : s));
-      }
-    } else {
-      setSessions((prev) => prev.map((s) => s.id === session!.id ? { ...s, messages: [...s.messages, userMsg] } : s));
-    }
-
+    // Add user message + AI placeholder optimistically
+    const aiMsgId = `msg-${Date.now()}-ai`;
+    const aiPlaceholder: ChatMessage = { id: aiMsgId, role: 'assistant', content: '', timestamp: new Date() };
+    setMessages((prev) => [...prev, userMsg, aiPlaceholder]);
     setMessage('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setIsLoading(true);
 
-    const aiMsgId = `msg-${Date.now()}-ai`;
-    const aiPlaceholder: ChatMessage = { id: aiMsgId, role: 'assistant', content: '', timestamp: new Date() };
-    setSessions((prev) => prev.map((s) => s.id === effectiveId ? { ...s, messages: [...s.messages, aiPlaceholder] } : s));
-
     try {
       const systemInstructions = AI_PERSONALITIES[selectedPersonality].systemInstructions;
-      const contextMessages = aiSettings.enableContextMemory ? (session?.messages || []).slice(-aiSettings.maxContextLength) : [];
+      const contextMessages = aiSettings.enableContextMemory
+        ? messages.slice(-aiSettings.maxContextLength)
+        : [];
       const normalizedMessages = [
         { role: 'system', content: systemInstructions },
         ...contextMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -253,6 +272,8 @@ function AiChatContent() {
       const token = await user.getIdToken();
       const body = {
         messages: normalizedMessages,
+        conversationId: isTemporaryChat ? undefined : currentConversationId,
+        temporary: isTemporaryChat || undefined,
         ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {}),
         mode: chatMode,
       };
@@ -276,6 +297,7 @@ function AiChatContent() {
       let buf = '';
       let fullContent = '';
       let isDone = false;
+      let currentEventName = '';
 
       while (!isDone) {
         const { value, done } = await reader.read();
@@ -283,16 +305,67 @@ function AiChatContent() {
         buf += decoder.decode(value, { stream: true });
         const lines = buf.split('\n');
         buf = lines.pop() ?? '';
+
         for (const line of lines) {
           const trimmed = line.trimEnd();
+
+          if (trimmed === '') {
+            // SSE event boundary — reset event name
+            currentEventName = '';
+            continue;
+          }
+
+          if (trimmed.startsWith('event:')) {
+            currentEventName = trimmed.slice(6).trim();
+            continue;
+          }
+
           if (trimmed.startsWith('data:')) {
-            const rawData = trimmed.slice(5);
+            const rawData = trimmed.slice(5).trim();
+
+            // Handle conversation_id meta-event (new or existing conversation)
+            if (currentEventName === 'conversation_id') {
+              const newId = rawData;
+              setCurrentConversationId(newId);
+              sessionStorage.setItem('lastConversationId', newId);
+
+              // Optimistically add/move to top of sidebar
+              setConversations((prev) => {
+                const exists = prev.some((c) => c.id === newId);
+                if (!exists) {
+                  const newConv: ConversationSummary = {
+                    id: newId,
+                    title: userMsg.content.slice(0, 60).replace(/\n/g, ' '),
+                    personality: selectedPersonality,
+                    mode: chatMode,
+                    createdAt: new Date(),
+                    lastMessageAt: new Date(),
+                  };
+                  return [newConv, ...prev];
+                }
+                // Move existing conversation to top and update lastMessageAt
+                const updated = prev.map((c) =>
+                  c.id === newId ? { ...c, lastMessageAt: new Date() } : c
+                );
+                return [updated.find((c) => c.id === newId)!, ...updated.filter((c) => c.id !== newId)];
+              });
+              currentEventName = '';
+              continue;
+            }
+
+            // Standard token data
             let data = rawData;
-            try { const parsed = JSON.parse(rawData); if (typeof parsed === 'string') data = parsed; } catch {}
+            try {
+              const parsed = JSON.parse(rawData);
+              if (typeof parsed === 'string') data = parsed;
+            } catch {}
+
             if (data === '[DONE]') { isDone = true; break; }
             if (data) {
               fullContent += data.replace(/\\n/g, '\n');
-              setSessions((prev) => prev.map((s) => s.id === effectiveId ? { ...s, messages: s.messages.map((m) => m.id === aiMsgId ? { ...m, content: fullContent } : m) } : s));
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent } : m))
+              );
             }
           }
         }
@@ -302,7 +375,9 @@ function AiChatContent() {
     } catch (error: any) {
       console.error('Chat error:', error);
       const errorContent = `**Error**: ${error.message || 'Failed to get AI response'}\n\nPlease try again.`;
-      setSessions((prev) => prev.map((s) => s.id === effectiveId ? { ...s, messages: s.messages.map((m) => m.id === aiMsgId ? { ...m, content: errorContent } : m) } : s));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: errorContent } : m))
+      );
       toast({ title: 'Chat Error', description: error.message || 'Failed to get AI response.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
@@ -313,7 +388,7 @@ function AiChatContent() {
   // ── Derived ──
   const personality = AI_PERSONALITIES[selectedPersonality];
   const PersonalityIcon = personality.icon;
-  const hasMessages = (currentSession?.messages?.length ?? 0) > 0;
+  const hasMessages = messages.length > 0;
 
   return (
     <AppLayout>
@@ -332,23 +407,19 @@ function AiChatContent() {
       <div className="flex overflow-hidden w-full h-[calc(100vh-48px)]">
         {/* Sidebar */}
         <ChatSidebar
-          sessions={sessions}
-          currentSessionId={currentSessionId}
+          conversations={conversations}
+          currentConversationId={currentConversationId}
+          isLoadingMessages={messagesLoading}
           isTemporaryChat={isTemporaryChat}
           isMobileOpen={isMobileSidebarOpen}
           sidebarSearch={sidebarSearch}
           onSearchChange={setSidebarSearch}
-          onNewChat={createNewSession}
+          onNewChat={handleNewChat}
           onToggleTemp={toggleTemporaryChat}
-          onSelectSession={(id) => {
-            setCurrentSessionId(id);
-            setIsTemporaryChat(false);
-            const sess = sessions.find(s => s.id === id);
-            if (sess) setSelectedPersonality(sess.personality);
-          }}
-          onDeleteSession={deleteSession}
-          onRenameSession={renameSession}
-          onClearAll={clearAllSessions}
+          onSelectConversation={(id) => { void selectConversationById(id); }}
+          onDeleteConversation={(id) => { void handleDeleteConversation(id); }}
+          onRenameConversation={(id, title) => { void handleRenameConversation(id, title); }}
+          onClearAll={() => { void handleClearAll(); }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
@@ -368,7 +439,11 @@ function AiChatContent() {
                 <PersonalityIcon className="h-3 w-3 text-white" />
               </div>
               <span className="text-sm font-medium truncate">
-                {isTemporaryChat ? 'Temporary Chat' : currentSession?.title || personality.name}
+                {isTemporaryChat
+                  ? 'Temporary Chat'
+                  : currentConversationId
+                  ? (conversations.find((c) => c.id === currentConversationId)?.title ?? personality.name)
+                  : personality.name}
               </span>
             </div>
           </div>
@@ -379,7 +454,7 @@ function AiChatContent() {
             className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 chat-scrollbar"
           >
             <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
-              {!hasMessages && (
+              {!hasMessages && !messagesLoading && (
                 <WelcomeScreen
                   isTemporaryChat={isTemporaryChat}
                   selectedPersonality={selectedPersonality}
@@ -390,13 +465,24 @@ function AiChatContent() {
                 />
               )}
 
+              {/* Loading skeleton while messages fetch */}
+              {messagesLoading && (
+                <div className="flex flex-col gap-4 py-8 animate-pulse">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className={cn('flex gap-3', i % 2 === 0 ? 'justify-end' : 'justify-start')}>
+                      <div className={cn('h-10 rounded-2xl bg-muted/60', i % 2 === 0 ? 'w-48' : 'w-64')} />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-5">
-                {currentSession?.messages.map((msg, idx) => (
+                {messages.map((msg, idx) => (
                   <ChatMessageBubble
                     key={msg.id}
                     msg={msg}
                     personality={selectedPersonality}
-                    isLastAi={msg.role === 'assistant' && idx === currentSession.messages.length - 1}
+                    isLastAi={msg.role === 'assistant' && idx === messages.length - 1}
                     isStreaming={isStreaming}
                     isLoading={isLoading}
                     copiedMsgId={copiedMsgId}
@@ -406,7 +492,7 @@ function AiChatContent() {
               </div>
 
               {/* Standalone thinking indicator */}
-              {isLoading && !isStreaming && !currentSession?.messages?.some(m => m.role === 'assistant' && m.content === '') && (
+              {isLoading && !isStreaming && !messages.some((m) => m.role === 'assistant' && m.content === '') && (
                 <div className="flex items-start gap-3 msg-enter mt-5">
                   <div className={cn('w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm', `bg-gradient-to-br ${personality.gradient}`)}>
                     <PersonalityIcon className="h-3.5 w-3.5 text-white animate-pulse" />

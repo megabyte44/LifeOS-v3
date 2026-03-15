@@ -61,6 +61,6 @@ export const adminService      = IS_MOCK ? adminMockService      : adminApiServi
 export const userService       = IS_MOCK ? userMockService       : userApiService;
 
 // ---------- Re-export types ----------
-export type { AiChatRequest, AiChatResponse } from './mock/ai-chat.mock';
+export type { AiChatRequest, AiChatResponse, AiConversationSummary } from './mock/ai-chat.mock';
 export type { PushSubscribeRequest } from './mock/push.mock';
 export type { UserProfile } from './mock/user.mock';

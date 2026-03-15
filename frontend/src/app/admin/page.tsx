@@ -5,9 +5,10 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAdminCheck } from '@/hooks/use-admin-check';
-import { 
-  Users, 
-  Shield
+import {
+  Users,
+  Shield,
+  BarChart3
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -22,6 +23,14 @@ export default function AdminDashboard() {
       href: '/admin/users',
       color: 'text-blue-500',
       bgColor: 'bg-blue-50 dark:bg-blue-950'
+    },
+    {
+      title: 'RAG Evaluation',
+      description: 'LLM-as-judge quality metrics: Faithfulness, Relevancy, Context Precision, Recall',
+      icon: BarChart3,
+      href: '/admin/rag-evaluation',
+      color: 'text-emerald-500',
+      bgColor: 'bg-emerald-50 dark:bg-emerald-950'
     }
     // Other admin features are disabled for now
     // Uncomment to enable when needed:
