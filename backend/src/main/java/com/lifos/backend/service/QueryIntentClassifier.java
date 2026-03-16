@@ -19,6 +19,9 @@ public class QueryIntentClassifier {
         SCHEDULE,
         PERSONAL,
         MEMORY,
+        JOURNAL,
+        NOTES,
+        AI,
         GENERAL
     }
 
@@ -30,6 +33,13 @@ public class QueryIntentClassifier {
             Intent.SCHEDULE, Set.of("schedule", "today", "plan", "calendar", "meeting", "appointment", "tomorrow", "planner"),
             Intent.PERSONAL, Set.of("about me", "who am i", "my profile", "interests", "bio", "myself"),
             Intent.MEMORY,   Set.of("remember", "told you", "recall", "mentioned", "last time", "you know")
+    );
+
+    // Separate map for the new intents (Map.of has a 10-entry limit)
+    private static final Map<Intent, Set<String>> EXTRA_INTENT_KEYWORDS = Map.of(
+            Intent.JOURNAL,  Set.of("journal", "diary", "entry", "wrote", "logged", "reflection"),
+            Intent.NOTES,    Set.of("note", "notes", "jotted", "saved", "wrote down", "document"),
+            Intent.AI,       Set.of("chat history", "previous conversation", "last chat", "what did i say", "conversation")
     );
 
     /**
@@ -45,6 +55,15 @@ public class QueryIntentClassifier {
         Set<Intent> intents = EnumSet.noneOf(Intent.class);
 
         for (var entry : INTENT_KEYWORDS.entrySet()) {
+            for (String keyword : entry.getValue()) {
+                if (lower.contains(keyword)) {
+                    intents.add(entry.getKey());
+                    break;
+                }
+            }
+        }
+
+        for (var entry : EXTRA_INTENT_KEYWORDS.entrySet()) {
             for (String keyword : entry.getValue()) {
                 if (lower.contains(keyword)) {
                     intents.add(entry.getKey());

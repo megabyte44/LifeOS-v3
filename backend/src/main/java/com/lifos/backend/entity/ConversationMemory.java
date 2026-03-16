@@ -86,6 +86,52 @@ public class ConversationMemory {
     @Builder.Default
     private Boolean active = true;
 
+    // ── Memory Graph fields (Phase 2) ──────────────────────────────────────────
+    /**
+     * Whether this memory represents a long-term fact ('static') or
+     * recent/evolving context ('dynamic'). Classified by LLM at extraction time.
+     */
+    @Column(name = "memory_type", length = 20)
+    @Builder.Default
+    private String memoryType = "dynamic";
+
+    /**
+     * True when this is the current head of its version chain.
+     * Set to false when superseded by a newer 'updates' edge.
+     */
+    @Column(name = "is_latest")
+    @Builder.Default
+    private Boolean isLatest = true;
+
+    /**
+     * Forward pointer to the next version of this memory (doubly-linked version chain).
+     * Null when this is the newest version.
+     */
+    @Column(name = "next_version_id")
+    private UUID nextVersionId;
+
+    /**
+     * Timestamp after which this memory should be treated as forgotten.
+     * Only set for temporal facts ("meeting tomorrow", "exam next week").
+     */
+    @Column(name = "expires_at")
+    private Instant expiresAt;
+
+    /**
+     * The AiConversation session that produced this memory (provenance tracking).
+     * Null for memories extracted before V30 or for manually created memories.
+     */
+    @Column(name = "session_id")
+    private UUID sessionId;
+
+    /**
+     * True when this memory has been auto-forgotten (expired) by the lifecycle job.
+     * Forgotten memories are excluded from context assembly and profile generation.
+     */
+    @Column(name = "forgotten")
+    @Builder.Default
+    private Boolean forgotten = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

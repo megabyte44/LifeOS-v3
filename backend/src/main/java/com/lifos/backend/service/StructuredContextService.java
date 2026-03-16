@@ -38,6 +38,7 @@ public class StructuredContextService {
     private final WorkoutSplitRepository workoutSplitRepository;
     private final ProteinIntakeRepository proteinIntakeRepository;
     private final ProteinTargetRepository proteinTargetRepository;
+    private final NoteRepository noteRepository;
 
     /**
      * Builds a structured snapshot of the user's current state for AI context.
@@ -70,6 +71,10 @@ public class StructuredContextService {
         if (all || intents.contains(QueryIntentClassifier.Intent.SCHEDULE)) {
             appendScheduleSnapshot(sb, userUid);
         }
+        if (all || intents.contains(QueryIntentClassifier.Intent.NOTES)) {
+            appendNotesSnapshot(sb, userUid);
+        }
+        // JOURNAL: stub for when journal feature is implemented
         if (all) {
             appendRecentActivity(sb, userUid);
         }
@@ -333,6 +338,26 @@ public class StructuredContextService {
         }
 
         sb.append("Pending todos: ").append(pending.size()).append(" remaining\n");
+        sb.append("\n");
+    }
+
+    // ── Notes ───────────────────────────────────────────────────────
+
+    private void appendNotesSnapshot(StringBuilder sb, String userUid) {
+        long count = noteRepository.countByUserUid(userUid);
+        if (count == 0) return;
+
+        List<Note> recent = noteRepository.findAllByUserUidOrderByCreatedAtDesc(userUid)
+                .stream().limit(5).toList();
+
+        sb.append("=== NOTES ===\n");
+        sb.append("Total notes: ").append(count).append("\n");
+        sb.append("Recent:\n");
+        for (Note n : recent) {
+            sb.append("- ").append(n.getTitle());
+            if (n.getType() != null) sb.append(" [").append(n.getType()).append("]");
+            sb.append("\n");
+        }
         sb.append("\n");
     }
 

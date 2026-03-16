@@ -30,4 +30,33 @@ public interface ConversationMemoryRepository extends JpaRepository<Conversation
     void touchAccess(@Param("userUid") String userUid,
                      @Param("ids") List<UUID> ids,
                      @Param("accessedAt") Instant accessedAt);
+
+    // ── Memory graph queries (Phase 2) ──────────────────────────────────────
+
+    /** N most recently updated live head memories — used for extraction context. */
+    @Query("SELECT m FROM ConversationMemory m WHERE m.user.uid = :userUid " +
+           "AND m.active = true AND m.isLatest = true AND m.forgotten = false " +
+           "ORDER BY m.updatedAt DESC")
+    List<ConversationMemory> findLatestActiveByUserUid(@Param("userUid") String userUid,
+                                                       Pageable pageable);
+
+    /** Static (long-term profile) head memories ordered by confidence. */
+    @Query("SELECT m FROM ConversationMemory m WHERE m.user.uid = :userUid " +
+           "AND m.active = true AND m.isLatest = true AND m.forgotten = false " +
+           "AND m.memoryType = 'static' ORDER BY m.overallConfidence DESC")
+    List<ConversationMemory> findStaticProfileMemories(@Param("userUid") String userUid);
+
+    /** Dynamic (recent context) head memories ordered by recency. */
+    @Query("SELECT m FROM ConversationMemory m WHERE m.user.uid = :userUid " +
+           "AND m.active = true AND m.isLatest = true AND m.forgotten = false " +
+           "AND m.memoryType = 'dynamic' ORDER BY m.updatedAt DESC")
+    List<ConversationMemory> findDynamicContextMemories(@Param("userUid") String userUid,
+                                                        Pageable pageable);
+
+    /** Bulk-expire memories whose expires_at has passed. Used by MemoryLifecycleService. */
+    @Modifying
+    @Query("UPDATE ConversationMemory m SET m.forgotten = true, m.isLatest = false, " +
+           "m.updatedAt = :now WHERE m.forgotten = false AND m.expiresAt IS NOT NULL " +
+           "AND m.expiresAt < :now")
+    int expireStaleMemories(@Param("now") Instant now);
 }

@@ -35,10 +35,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MemoryRetrievalStrategyService {
 
-    private static final int MEMORY_CANDIDATE_LIMIT = 120;
+    // Reduced from 120 → 60: MemoryGraphService.generateProfile() now handles global
+    // facts via the static/dynamic profile block, so this pool only needs to cover
+    // query-relevant memories for BM25+vector hybrid scoring.
+    private static final int MEMORY_CANDIDATE_LIMIT = 60;
     private static final int VECTOR_CANDIDATE_LIMIT = 30;
     private static final int MAX_LOGGED_CANDIDATES = 40;
-    private static final int LEGACY_MEMORY_LIMIT = 50;
+    // Reduced from 50 → 30 for the same reason (legacy path).
+    private static final int LEGACY_MEMORY_LIMIT = 30;
     private static final int GRAPH_SEED_COUNT = 5;
 
     private final AiFoundationProperties aiFoundationProperties;

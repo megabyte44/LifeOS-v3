@@ -712,9 +712,17 @@ export default function NotesPage() {
 
 
   const handleSaveNote = async (newNoteData: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try { await addNoteApi(newNoteData); }
-    catch (e) { console.error(e); }
-    setIsAddingNote(false);
+    try {
+      await addNoteApi(newNoteData);
+      setIsAddingNote(false);
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: 'Save failed',
+        description: 'Could not save note. Please check backend/API and try again.',
+        variant: 'destructive',
+      });
+    }
   };
   
   const handleUpdateNote = async (updatedNote: Note) => {

@@ -243,6 +243,7 @@ public class AdminService {
     // ── Mappers ───────────────────────────────────────────────────────────────
 
     private AiConfigurationResponse toAiConfigResponse(AiConfiguration c) {
+        AiConfigurationResponse r = new AiConfigurationResponse();
         r.setId(c.getId());
         r.setSystemInstructions(c.getSystemInstructions());
         r.setDefaultPersonality(c.getDefaultPersonality());
