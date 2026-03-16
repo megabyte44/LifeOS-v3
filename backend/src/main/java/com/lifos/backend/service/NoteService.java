@@ -25,6 +25,7 @@ public class NoteService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ActivityLogService activityLogService;
+    private final IngestionPipeline ingestionPipeline;
 
     private User getUser(String uid) {
         return userRepository.findById(uid)
@@ -58,10 +59,10 @@ public class NoteService {
                 .type(req.getType())
                 .build();
         Note saved = noteRepository.save(n);
-        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
-                uid, "note", saved.getId(), buildEmbedText(saved)));
+        String embedText = buildEmbedText(saved);
+        ingestionPipeline.ingestAsync(uid, "note", saved.getId(), embedText);
         eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
-                uid, "note", saved.getId(), buildEmbedText(saved)));
+                uid, "note", saved.getId(), embedText));
         activityLogService.log(uid, "notes", "created", saved.getId(), "Created note: " + saved.getTitle());
         return toResponse(saved);
     }
@@ -75,10 +76,10 @@ public class NoteService {
         if (req.getContent() != null) n.setContent(req.getContent());
         if (req.getType()    != null) n.setType(req.getType());
         Note saved = noteRepository.save(n);
-        eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
-                uid, "note", saved.getId(), buildEmbedText(saved)));
+        String embedText = buildEmbedText(saved);
+        ingestionPipeline.ingestAsync(uid, "note", saved.getId(), embedText);
         eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
-                uid, "note", saved.getId(), buildEmbedText(saved)));
+                uid, "note", saved.getId(), embedText));
         return toResponse(saved);
     }
 
@@ -87,7 +88,7 @@ public class NoteService {
         Note n = noteRepository.findByIdAndUserUid(id, uid)
                 .orElseThrow(() -> new ResourceNotFoundException("Note", "id", id));
         log.info("Deleting note [{}] for user [{}]", id, uid);
-        eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "note", n.getId()));
+        ingestionPipeline.delete(uid, "note", n.getId());
         eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "note", n.getId(), null));
         noteRepository.delete(n);
     }
