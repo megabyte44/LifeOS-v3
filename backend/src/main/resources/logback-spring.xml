@@ -1,47 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!-- ════════════════════════════════════════════
-         ANSI Color Shortcuts
-         ════════════════════════════════════════════ -->
-    <conversionRule conversionWord="clr"
-                    converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
-    <conversionRule conversionWord="wex"
-                    converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter"/>
-
-    <!-- ════════════════════════════════════════════
-         Log File Path
-         ════════════════════════════════════════════ -->
     <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
     <property name="LOG_FILE" value="${LOG_DIR}/lifeos.log"/>
 
-    <!-- ════════════════════════════════════════════
-         CONSOLE APPENDER  (colored, human-readable)
-         ════════════════════════════════════════════ -->
+    <!-- Simple console output: no color codes and no full stack traces -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>
-%clr(%d{HH:mm:ss.SSS}){faint} %clr(%-5level){highlight} %clr(─){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %msg%n%wex
-            </pattern>
+            <pattern>%d{HH:mm:ss} %-5level %logger{36} : %msg%n</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
 
-    <!-- ════════════════════════════════════════════
-         SQL APPENDER  (only Hibernate SQL, no noise)
-         ════════════════════════════════════════════ -->
-    <appender name="SQL_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>
-%clr(%d{HH:mm:ss.SSS}){faint} %clr(SQL  ){blue} %clr(─){faint} %msg%n%wex
-            </pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-    </appender>
-
-    <!-- ════════════════════════════════════════════
-         FILE APPENDER  (plain text, rolling daily)
-         ════════════════════════════════════════════ -->
+    <!-- Keep full details in file logs for debugging when needed -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -49,52 +20,23 @@
             <maxHistory>7</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- %-40.40logger{39} : %msg%n%ex</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{40} : %msg%n%ex</pattern>
             <charset>UTF-8</charset>
         </encoder>
     </appender>
 
-    <!-- ════════════════════════════════════════════
-         LOGGER LEVELS
-         ════════════════════════════════════════════ -->
+    <!-- App logs at INFO+ only -->
+    <logger name="com.lifos.backend" level="INFO"/>
 
-    <!-- ── Your app ── -->
-    <logger name="com.lifos.backend" level="DEBUG" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE"/>
-    </logger>
+    <!-- Silence noisy internals -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.springframework.web" level="WARN"/>
+    <logger name="org.springframework.security" level="WARN"/>
+    <logger name="org.apache" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
 
-    <!-- ── Hibernate SQL (routed to its own appender) ── -->
-    <logger name="org.hibernate.SQL" level="DEBUG" additivity="false">
-        <appender-ref ref="SQL_CONSOLE"/>
-        <appender-ref ref="FILE"/>
-    </logger>
-    <!-- Bind parameters next to their SQL statement -->
-    <logger name="org.hibernate.orm.jdbc.bind" level="TRACE" additivity="false">
-        <appender-ref ref="SQL_CONSOLE"/>
-    </logger>
-
-    <!-- ── Security (warn only — too noisy at DEBUG in console) ── -->
-    <logger name="org.springframework.security" level="WARN" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE"/>
-    </logger>
-
-    <!-- ── Flyway ── -->
-    <logger name="org.flywaydb" level="INFO" additivity="false">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE"/>
-    </logger>
-
-    <!-- ── Spring framework internals — keep quiet ── -->
-    <logger name="org.springframework"              level="WARN"/>
-    <logger name="org.springframework.web"          level="INFO"/>
-    <logger name="org.apache"                       level="WARN"/>
-    <logger name="com.zaxxer.hikari"                level="WARN"/>
-
-    <!-- ════════════════════════════════════════════
-         ROOT  (everything else)
-         ════════════════════════════════════════════ -->
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>

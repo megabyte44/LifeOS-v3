@@ -16,8 +16,8 @@ import java.util.Map;
  * Public health endpoint — no authentication required.
  *
  * GET /health
- *   → 200 { status: "UP",   db: "UP",   timestamp: "..." }
- *   → 200 { status: "DEGRADED", db: "DOWN", timestamp: "..." }
+ *   → 200 { status: "UP",   db: "UP",   dbType: "PostgreSQL", dbProvider: "NEON", timestamp: "..." }
+ *   → 200 { status: "DEGRADED", db: "DOWN", dbType: "UNKNOWN", dbProvider: "UNKNOWN", timestamp: "..." }
  *
  * Lives outside /api/** so it is permitted without a Firebase token.
  * Used by the frontend connection logger to track backend + DB reachability.
@@ -31,11 +31,16 @@ public class HealthController {
 
     @GetMapping
     public ResponseEntity<Map<String, String>> health() {
-        String dbStatus = checkDatabase();
+        Map<String, String> dbHealth = checkDatabase();
+        String dbStatus = dbHealth.get("db");
+        String dbType = dbHealth.get("dbType");
+        String dbProvider = dbHealth.get("dbProvider");
 
         Map<String, String> body = new LinkedHashMap<>();
         body.put("status",    dbStatus.equals("UP") ? "UP" : "DEGRADED");
         body.put("db",        dbStatus);
+        body.put("dbType",    dbType);
+        body.put("dbProvider", dbProvider);
         body.put("timestamp", Instant.now().toString());
 
         return ResponseEntity.ok(body);
@@ -43,12 +48,39 @@ public class HealthController {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    private String checkDatabase() {
+    private Map<String, String> checkDatabase() {
         try (Connection conn = dataSource.getConnection()) {
             boolean valid = conn.isValid(2); // 2-second timeout
-            return valid ? "UP" : "DOWN";
+            String dbUrl = conn.getMetaData().getURL();
+            Map<String, String> db = new LinkedHashMap<>();
+            db.put("db", valid ? "UP" : "DOWN");
+            db.put("dbType", valid ? conn.getMetaData().getDatabaseProductName() : "UNKNOWN");
+            db.put("dbProvider", valid ? detectProvider(dbUrl) : "UNKNOWN");
+            return db;
         } catch (Exception e) {
-            return "DOWN";
+            Map<String, String> db = new LinkedHashMap<>();
+            db.put("db", "DOWN");
+            db.put("dbType", "UNKNOWN");
+            db.put("dbProvider", "UNKNOWN");
+            return db;
         }
+    }
+
+    private String detectProvider(String jdbcUrl) {
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return "UNKNOWN";
+        }
+
+        String url = jdbcUrl.toLowerCase();
+        if (url.contains("neon.tech") || url.contains("neon")) {
+            return "NEON";
+        }
+        if (url.contains("railway.app") || url.contains("railway")) {
+            return "RAILWAY";
+        }
+        if (url.contains("localhost") || url.contains("127.0.0.1") || url.contains("0.0.0.0")) {
+            return "LOCAL";
+        }
+        return "CUSTOM";
     }
 }

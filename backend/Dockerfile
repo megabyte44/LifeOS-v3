@@ -31,4 +31,6 @@ USER appuser
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENV JAVA_OPTS="-Xms128m -Xmx384m -XX:+UseG1GC -XX:+UseContainerSupport"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

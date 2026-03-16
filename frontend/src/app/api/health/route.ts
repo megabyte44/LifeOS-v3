@@ -10,6 +10,6 @@ export async function GET() {
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {
-    return NextResponse.json({ status: 'down', db: 'unknown' }, { status: 503 });
+    return NextResponse.json({ status: 'down', db: 'unknown', dbType: 'UNKNOWN', dbProvider: 'UNKNOWN' }, { status: 503 });
   }
 }
