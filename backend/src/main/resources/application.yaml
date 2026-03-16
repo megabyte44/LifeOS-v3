@@ -1,9 +1,12 @@
 server:
   port: 8000
+  shutdown: graceful
 
 spring:
   application:
     name: LifeOS-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   config:
     import: optional:file:.env[.properties],optional:file:./backend/.env[.properties]
 
@@ -13,6 +16,11 @@ spring:
     username: ${RAILWAY_DATASOURCE_USERNAME:${SPRING_DATASOURCE_USERNAME:${NEON_DATASOURCE_USERNAME:${LOCAL_DATASOURCE_USERNAME:${POSTGRES_USER:postgres}}}}}
     password: ${RAILWAY_DATASOURCE_PASSWORD:${SPRING_DATASOURCE_PASSWORD:${NEON_DATASOURCE_PASSWORD:${LOCAL_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:postgres}}}}}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 600000
 
   # ── JPA / Hibernate ──
   jpa:
@@ -20,11 +28,6 @@ spring:
       ddl-auto: validate          # Flyway manages schema; Hibernate only validates
     show-sql: false                # Handled by logback (org.hibernate.SQL logger)
     open-in-view: false            # Best practice: avoid lazy-loading in controllers
-    properties:
-      hibernate:
-        format_sql: true           # Pretty-print SQL logged via logback
-        highlight_sql: true        # ANSI-colour SQL keywords in console
-        # dialect is auto-detected by Hibernate 7 — no need to specify
 
   # ── Flyway ──
   flyway:
@@ -81,8 +84,8 @@ ai:
     graph-max-hops: 2
     graph-boost-weight: 0.15
   async:
-    core-pool-size: 4
-    max-pool-size: 8
+    core-pool-size: 2
+    max-pool-size: 4
     queue-capacity: 100
     thread-name-prefix: ai-
   insights:
