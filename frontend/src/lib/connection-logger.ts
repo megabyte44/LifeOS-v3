@@ -17,12 +17,16 @@ type ConnectionState = 'unknown' | 'up' | 'down';
 interface HealthResponse {
   status: string;
   db: string;
+  dbType?: string;
+  dbProvider?: string;
   timestamp: string;
 }
 
 // Track previous state to only log on change
 let prevBackend: ConnectionState = 'unknown';
 let prevDb:      ConnectionState = 'unknown';
+let prevDbType = 'UNKNOWN';
+let prevDbProvider = 'UNKNOWN';
 
 // ─── Styling ─────────────────────────────────────────────────────────────────
 
@@ -39,10 +43,13 @@ function ts(): string {
   return new Date().toLocaleTimeString('en-US', { hour12: false });
 }
 
-function logStatus(backend: ConnectionState, db: ConnectionState) {
+function logStatus(backend: ConnectionState, db: ConnectionState, dbType: string, dbProvider: string) {
+  const dbLabel = dbType || 'UNKNOWN';
+  const providerLabel = dbProvider || 'UNKNOWN';
+
   if (backend === 'up' && db === 'up') {
     console.log(
-      `%c LifeOS %c ✅ Backend CONNECTED %c ✅ DB CONNECTED %c @ ${ts()}`,
+      `%c LifeOS %c ✅ Backend CONNECTED %c ✅ DB CONNECTED (${dbLabel} via ${providerLabel}) %c @ ${ts()}`,
       'font-weight:bold; color:#8a7ff2;',
       `${S.badge}${S.backendOk}`,
       `${S.badge}${S.dbOk}`,
@@ -71,6 +78,8 @@ function logStatus(backend: ConnectionState, db: ConnectionState) {
 async function check() {
   let backend: ConnectionState;
   let db: ConnectionState;
+  let dbType = 'UNKNOWN';
+  let dbProvider = 'UNKNOWN';
 
   try {
     const res = await fetch(HEALTH_ENDPOINT, {
@@ -83,6 +92,8 @@ async function check() {
       const data: HealthResponse = await res.json();
       backend = 'up';
       db = data.db?.toUpperCase() === 'UP' ? 'up' : 'down';
+      dbType = (data.dbType || 'UNKNOWN').toUpperCase();
+      dbProvider = (data.dbProvider || 'UNKNOWN').toUpperCase();
     } else {
       backend = 'down';
       db = 'down';
@@ -92,11 +103,26 @@ async function check() {
     db = 'down';
   }
 
+  // Show current connectivity snapshot for easy debugging in the console.
+  if (backend === 'up') {
+    const dbSnapshot = db === 'up'
+      ? `CONNECTED (${dbType} via ${dbProvider})`
+      : 'DISCONNECTED';
+    console.info(`[LifeOS] Backend CONNECTED | DB ${dbSnapshot} @ ${ts()}`);
+  }
+
   // Only log when something changed
-  if (backend !== prevBackend || db !== prevDb) {
-    logStatus(backend, db);
+  if (
+    backend !== prevBackend
+    || db !== prevDb
+    || (db === 'up' && dbType !== prevDbType)
+    || (db === 'up' && dbProvider !== prevDbProvider)
+  ) {
+    logStatus(backend, db, dbType, dbProvider);
     prevBackend = backend;
     prevDb = db;
+    prevDbType = dbType;
+    prevDbProvider = dbProvider;
   }
 }
 
