@@ -9,6 +9,7 @@ Next.js App Router app with Firebase Auth + Firestore, Tailwind/Shadcn UI, and o
 ```bash
 npm install
 ```
+###################################
 
 2) Create `.env.local` (see `.env.local.example` for required keys)
 
