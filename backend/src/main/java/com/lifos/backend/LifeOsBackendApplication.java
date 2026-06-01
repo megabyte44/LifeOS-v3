@@ -17,7 +17,7 @@ public class LifeOsBackendApplication {
 	public static void main(String[] args) {
 		// Force Asia/Kolkata before any bean (Flyway/Hikari) initializes.
 		// Without this, the JVM uses Windows "India Standard Time" which maps to
-		// the deprecated "Asia/Calcutta" name — rejected by PostgreSQL on Neon/Railway.
+		// the deprecated "Asia/Calcutta" name, which some PostgreSQL providers reject.
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
 		SpringApplication.run(LifeOsBackendApplication.class, args);
 	}

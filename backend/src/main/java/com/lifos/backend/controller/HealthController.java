@@ -75,8 +75,8 @@ public class HealthController {
         if (url.contains("neon.tech") || url.contains("neon")) {
             return "NEON";
         }
-        if (url.contains("railway.app") || url.contains("railway")) {
-            return "RAILWAY";
+        if (url.contains("rds.amazonaws.com") || url.contains("amazonaws.com")) {
+            return "AWS_RDS";
         }
         if (url.contains("localhost") || url.contains("127.0.0.1") || url.contains("0.0.0.0")) {
             return "LOCAL";

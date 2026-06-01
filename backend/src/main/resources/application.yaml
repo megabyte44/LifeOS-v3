@@ -10,11 +10,11 @@ spring:
   config:
     import: optional:file:.env[.properties],optional:file:./backend/.env[.properties]
 
-  # ── PostgreSQL Datasource (primary: Railway; backup: Neon) ──
+  # ── PostgreSQL Datasource (primary: AWS RDS; backup: Neon) ──
   datasource:
-    url: ${RAILWAY_DATASOURCE_URL:${SPRING_DATASOURCE_URL:${NEON_DATASOURCE_URL:${LOCAL_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT_HOST:5432}/${POSTGRES_DB:lifeos}}}}}
-    username: ${RAILWAY_DATASOURCE_USERNAME:${SPRING_DATASOURCE_USERNAME:${NEON_DATASOURCE_USERNAME:${LOCAL_DATASOURCE_USERNAME:${POSTGRES_USER:postgres}}}}}
-    password: ${RAILWAY_DATASOURCE_PASSWORD:${SPRING_DATASOURCE_PASSWORD:${NEON_DATASOURCE_PASSWORD:${LOCAL_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:postgres}}}}}
+    url: ${SPRING_DATASOURCE_URL:${NEON_DATASOURCE_URL:${LOCAL_DATASOURCE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT_HOST:5432}/${POSTGRES_DB:lifeos}}}}
+    username: ${SPRING_DATASOURCE_USERNAME:${NEON_DATASOURCE_USERNAME:${LOCAL_DATASOURCE_USERNAME:${POSTGRES_USER:postgres}}}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${NEON_DATASOURCE_PASSWORD:${LOCAL_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD:postgres}}}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 5
