@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-  Dumbbell, Download, Upload, BellDot, Palette, Activity, Settings as SettingsIcon,
-  ListChecks, CalendarCheck, Wallet, GlassWater, Target, KeyRound, StickyNote,
+  Download, Upload, BellDot, Palette, Activity, Settings as SettingsIcon,
+  ListChecks, CalendarCheck, GlassWater, StickyNote,
   Check, LayoutDashboard,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -88,14 +88,10 @@ const featureList: {
   description: string;
   icon: React.ElementType;
 }[] = [
-  { key: 'todaysPlan',       label: "Today's Plan",       description: "Daily schedule & time-block planner on dashboard",      icon: CalendarCheck },
-  { key: 'financialSnapshot',label: 'Financial Snapshot', description: 'Recent transactions and balance overview',              icon: Wallet        },
-  { key: 'todoList',         label: 'To-Do List',         description: 'Quick-access daily tasks and priorities widget',        icon: ListChecks    },
-  { key: 'waterIntake',      label: 'Water Intake',       description: 'Hydration tracker with daily goal progress',           icon: GlassWater    },
-  { key: 'gymTracker',       label: 'Gym Tracker',        description: 'Workout split, protein intake, and progress tracking', icon: Dumbbell      },
-  { key: 'habitStreaks',     label: 'Habit Streaks',      description: 'Streak counters and completion heatmap',               icon: Activity      },
-  { key: 'overloadTracker',  label: 'Progressive Overload', description: 'Per-exercise weight & rep tracking with history',   icon: Dumbbell      },
-  { key: 'proteinIntake',    label: 'Protein Intake',     description: 'Log and track daily protein from food & supplements',  icon: GlassWater    },
+  { key: 'todaysPlan',   label: "Today's Plan", description: "Daily schedule & time-block planner on dashboard",  icon: CalendarCheck },
+  { key: 'todoList',     label: 'To-Do List',   description: 'Quick-access daily tasks and priorities widget',     icon: ListChecks    },
+  { key: 'waterIntake',  label: 'Water Intake', description: 'Hydration tracker with daily goal progress',        icon: GlassWater    },
+  { key: 'habitStreaks', label: 'Habit Streaks',description: 'Streak counters and completion heatmap',            icon: Activity      },
 ];
 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────

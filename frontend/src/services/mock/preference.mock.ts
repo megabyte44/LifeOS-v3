@@ -6,22 +6,12 @@ const defaultPreferences: UserPreferences = {
   features: {
     waterIntake: true,
     todaysPlan: true,
-    financialSnapshot: true,
     todoList: true,
     habitStreaks: true,
-    gymTracker: true,
-    proteinIntake: true,
-    foodSupplements: true,
-    overloadTracker: true,
-    gymProteinIntake: true,
-    gymFoodSupplements: true,
-    proteinIntakeWidget: true,
-    supplementIntakeWidget: true,
   },
   onboarding: {
     completedDashboardTour: false,
     completedProfileTour: false,
-    completedGymPreferences: false,
     skippedTours: false,
   },
 };

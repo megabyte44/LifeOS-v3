@@ -5,18 +5,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { 
-  ArrowRight, 
-  ArrowLeft, 
-  Sparkles, 
+import {
+  ArrowRight,
+  ArrowLeft,
+  Sparkles,
   LayoutDashboard,
   Droplets,
   CalendarCheck,
-  Wallet,
   ListChecks,
-  Dumbbell,
-  Beef,
-  Pill,
   User,
   Settings,
   LogOut,
@@ -174,13 +170,6 @@ export const dashboardTourSteps: OnboardingStep[] = [
     title: 'Today\'s Schedule',
     description: 'Your daily planner at a glance. See your upcoming tasks and events organized by time. Click to view more details or navigate to the full Planner page.',
     icon: <CalendarCheck className="h-5 w-5 text-purple-500" />,
-    position: 'center'
-  },
-  {
-    id: 'financial-snapshot',
-    title: 'Financial Overview',
-    description: 'Keep track of your finances effortlessly. See your income, expenses, and savings progress. The widget provides quick insights into your financial health.',
-    icon: <Wallet className="h-5 w-5 text-green-500" />,
     position: 'center'
   },
   {

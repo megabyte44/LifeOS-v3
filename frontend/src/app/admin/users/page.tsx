@@ -52,7 +52,7 @@ export default function UsersManagementPage() {
 
   function exportUsers() {
     const csv = [
-      ['Email', 'Display Name', 'Created At', 'Last Login', 'Notes', 'Todos', 'Habits', 'Transactions', 'AI Messages', 'Role'].join(','),
+      ['Email', 'Display Name', 'Created At', 'Last Login', 'Notes', 'Todos', 'Habits', 'AI Messages', 'Role'].join(','),
       ...filteredAndSortedUsers.map(u => [
         u.email,
         u.displayName || '',
@@ -61,7 +61,6 @@ export default function UsersManagementPage() {
         u.notesCount,
         u.todosCount,
         u.habitsCount,
-        u.transactionsCount,
         u.aiMessagesCount,
         u.role,
       ].join(','))
@@ -91,8 +90,8 @@ export default function UsersManagementPage() {
         case 'lastLogin':
           return new Date(b.lastLoginAt).getTime() - new Date(a.lastLoginAt).getTime();
         case 'mostActive':
-          const aActivity = (a.notesCount || 0) + (a.todosCount || 0) + (a.habitsCount || 0) + (a.transactionsCount || 0) + (a.aiMessagesCount || 0);
-          const bActivity = (b.notesCount || 0) + (b.todosCount || 0) + (b.habitsCount || 0) + (b.transactionsCount || 0) + (b.aiMessagesCount || 0);
+          const aActivity = (a.notesCount || 0) + (a.todosCount || 0) + (a.habitsCount || 0) + (a.aiMessagesCount || 0);
+          const bActivity = (b.notesCount || 0) + (b.todosCount || 0) + (b.habitsCount || 0) + (b.aiMessagesCount || 0);
           return bActivity - aActivity;
         default:
           return 0;
@@ -212,7 +211,6 @@ export default function UsersManagementPage() {
                       <TableHead className="text-right">Notes</TableHead>
                       <TableHead className="text-right">Todos</TableHead>
                       <TableHead className="text-right">Habits</TableHead>
-                      <TableHead className="text-right">Transactions</TableHead>
                       <TableHead className="text-right">AI Messages</TableHead>
                       <TableHead>Role</TableHead>
                     </TableRow>
@@ -220,7 +218,7 @@ export default function UsersManagementPage() {
                   <TableBody>
                     {filteredAndSortedUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground">
                           No users found
                         </TableCell>
                       </TableRow>
@@ -248,7 +246,6 @@ export default function UsersManagementPage() {
                           <TableCell className="text-right">{u.notesCount}</TableCell>
                           <TableCell className="text-right">{u.todosCount}</TableCell>
                           <TableCell className="text-right">{u.habitsCount}</TableCell>
-                          <TableCell className="text-right">{u.transactionsCount}</TableCell>
                           <TableCell className="text-right">{u.aiMessagesCount}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
