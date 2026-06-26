@@ -59,7 +59,13 @@ public class OpenAiEmbeddingClient {
         String url = "openrouter".equals(provider)
                 ? "https://openrouter.ai/api/v1/embeddings"
                 : "https://api.openai.com/v1/embeddings";
-        String configuredModel = aiFoundationProperties.getEmbedding().getModel();
+        // DB modelConfig.embeddingModel takes priority over application.yaml value
+        String dbEmbeddingModel = config.getModelConfig() != null
+                ? (String) config.getModelConfig().get("embeddingModel")
+                : null;
+        String configuredModel = (dbEmbeddingModel != null && !dbEmbeddingModel.isBlank())
+                ? dbEmbeddingModel
+                : aiFoundationProperties.getEmbedding().getModel();
         String model = (configuredModel == null || configuredModel.isBlank())
             ? DEFAULT_EMBEDDING_MODEL
             : configuredModel.trim();

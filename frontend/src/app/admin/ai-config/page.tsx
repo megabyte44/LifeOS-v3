@@ -165,6 +165,21 @@ export default function AiConfigPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Embedding Model</Label>
+              <Input
+                value={config.modelConfig.embeddingModel || ''}
+                onChange={(e) => setConfig({
+                  ...config,
+                  modelConfig: { ...config.modelConfig, embeddingModel: e.target.value }
+                })}
+                placeholder="e.g., openai/text-embedding-3-small"
+              />
+              <p className="text-xs text-muted-foreground">
+                Model used for RAG vector embeddings. For OpenRouter, prefix with openai/ (e.g. openai/text-embedding-3-small).
+              </p>
+            </div>
+
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Temperature (0-2)</Label>

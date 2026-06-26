@@ -84,7 +84,7 @@ async function request<T>(
     ...fetchOptions,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal: fetchOptions.signal ?? AbortSignal.timeout(10_000),
+    signal: fetchOptions.signal ?? AbortSignal.timeout(30_000),
   };
 
   const response = await fetch(url, config);
