@@ -16,7 +16,6 @@ import {
   Loader2,
   User as UserIcon,
   Shield,
-  CalendarCheck,
   Search,
   MessageSquare,
 } from 'lucide-react';
@@ -100,7 +99,7 @@ type NavItem = {
 const primaryNav: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Today' },
   { href: '/habits', icon: AnvilIcon, label: 'Habits', matchPaths: ['/planner', '/notes'] },
-  { href: '/ai-chat', icon: MessageSquare, label: 'AI', matchPaths: ['/reminders', '/notifications'] },
+  { href: '/ai-chat', icon: MessageSquare, label: 'AI', matchPaths: ['/notifications'] },
 ];
 
 // Bottom-of-sidebar mobile nav items (5 max for comfortable thumb reach)
@@ -272,9 +271,6 @@ function UserNav({ user, onLogout }: { user: User; onLogout: () => void }) {
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push('/notes')}>
             <StickyNote className="mr-2 h-4 w-4" />Notes
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => router.push('/reminders')}>
-            <CalendarCheck className="mr-2 h-4 w-4" />Reminders
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

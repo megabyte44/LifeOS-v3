@@ -40,7 +40,6 @@ export function CommandPalette() {
     { id: 'nav-habits', label: 'Go to Habits', icon: AnvilIcon, action: () => router.push('/habits'), group: 'Navigate', keywords: ['forge', 'streaks', 'tracking'] },
     { id: 'nav-notes', label: 'Go to Notes', icon: StickyNote, action: () => router.push('/notes'), group: 'Navigate', keywords: ['markdown', 'writing'] },
     { id: 'nav-ai', label: 'Go to AI Chat', icon: MessageSquare, action: () => router.push('/ai-chat'), group: 'Navigate', keywords: ['assistant', 'chat'] },
-    { id: 'nav-reminders', label: 'Go to Reminders', icon: Bell, action: () => router.push('/reminders'), group: 'Navigate', keywords: ['events', 'birthdays', 'deadlines'] },
     { id: 'nav-notifications', label: 'Go to Notifications', icon: Bell, action: () => router.push('/notifications'), group: 'Navigate' },
     { id: 'nav-profile', label: 'Go to Profile', icon: User, action: () => router.push('/profile'), group: 'Navigate' },
     { id: 'nav-settings', label: 'Go to Settings', icon: Settings, action: () => router.push('/settings'), group: 'Navigate', keywords: ['theme', 'preferences'] },
