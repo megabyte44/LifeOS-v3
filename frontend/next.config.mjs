@@ -37,7 +37,19 @@ const withPWA = withPWAInit({
 const nextConfig = {
   // Enable React strict mode for better development
   reactStrictMode: true,
-  
+
+  // Allow Firebase Google popup auth — default COOP same-origin blocks window.closed
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+        ],
+      },
+    ];
+  },
+
   // Explicitly define Turbopack config to avoid auto-detection warnings.
   turbopack: {},
   
