@@ -1,20 +1,15 @@
 # LifeOS v3
 
-A comprehensive life management application built with Spring Boot and Next.js, featuring task management, habit tracking, expense tracking, note-taking, password management, and AI-powered chat assistance.
+A focused life management application built with Spring Boot and Next.js. Combines task and habit tracking, daily planning, and note-taking with a context-aware AI assistant that understands your schedule, habits, and notes in real time.
 
 ## 🚀 Features
 
-- **Dashboard** - Unified view of your daily activities and goals
-- **Task Management** - Organize todos and manage your daily planner
-- **Habit Tracking** - Build and track healthy habits
-- **Goal Setting** - Set and monitor personal and professional goals
-- **Expense Tracking** - Manage finances and track transactions
-- **Note Taking** - Create and organize notes with markdown support
-- **Password Manager** - Securely store and manage credentials
-- **Gym Tracker** - Track workouts and fitness progress
-- **AI Chat** - AI-powered assistant for productivity
-- **Reminders** - Never miss important tasks
-- **Notifications** - Web push notifications support
+- **Dashboard** - Unified view of your day — habits, todos, planner, and water intake at a glance
+- **Task Management** - Full todo list with priorities and a daily planner
+- **Habit Tracking** - Build streaks, visualise last-7-day completion grids, get milestone insights
+- **Note Taking** - Create and organise notes with markdown support; notes are fully searchable by the AI
+- **AI Chat** - Context-aware assistant powered by a 3-layer RAG system (vector search + live SQL snapshots + long-term memory extraction)
+- **Notifications** - Web push notifications with insight-driven alerts (streak breaks, milestones, overdue todos)
 - **Offline Support** - Progressive Web App with offline capabilities
 
 ## 🏗️ Tech Stack
@@ -218,30 +213,36 @@ Services:
 
 For frontend, configure a separate container or deploy to Vercel/Netlify.
 
+## 🤖 AI Architecture
+
+The AI chat assistant uses a three-layer context assembly pipeline built on top of PostgreSQL + pgvector:
+
+- **Layer 1 — RAG / Vector Search**: every note, todo, habit, planner item, and past conversation is embedded on save and stored in pgvector. On each message the user's query is vectorised and the top semantically similar chunks are retrieved via cosine similarity, merged with BM25-scored conversation memories, and ranked by a composite score (similarity × quality × recency × access-boost).
+- **Layer 2 — Structured SQL Snapshots**: a fast keyword-based intent classifier (HABITS / TODOS / SCHEDULE / NOTES / GENERAL) gates targeted SQL queries so the AI always sees live, exact data — current streak counts, today's schedule, pending todos.
+- **Layer 3 — Memory Graph Profile**: facts learned from past conversations (name, preferences, life events) are extracted asynchronously after each chat turn and injected as a persistent user profile on every future request.
+
+After each response the system asynchronously extracts new user facts, embeds the conversation turn, and evaluates RAG quality (faithfulness, answer relevancy, context precision).
+
 ## 📚 API Documentation
 
 The backend exposes RESTful APIs for:
-- User management
+- User management and admin
 - Tasks and todos
 - Habits
-- Goals
-- Expenses/Transactions
+- Daily planner
 - Notes
-- Password manager (credentials)
-- Gym workouts
-- Notifications
-- AI chat
-- Preferences
+- Notifications and web push
+- AI chat (streaming SSE + conversation history)
+- User preferences and profile
 
 See [API_CONTRACT.md](frontend/src/services/API_CONTRACT.md) for detailed API documentation.
 
 ## 🔒 Security
 
-- Firebase Authentication for user management
-- AES-256 encryption for sensitive data (passwords in password manager)
+- Firebase Authentication for user management (JWT validated on every request)
 - CORS configured for frontend origin
-- Secure password storage
-- Environment-based configuration
+- All data scoped strictly to the authenticated user's UID
+- Environment-based configuration — no secrets in source control
 
 ## 🧪 Testing
 
