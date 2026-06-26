@@ -46,6 +46,13 @@ public class PlannerService {
         User user = getUser(uid);
         log.info("Updating planner for user [{}] day='{}' items={}", uid, day,
                 req.getItems() != null ? req.getItems().size() : 0);
+
+        // Fire delete events for all existing items before wiping them
+        plannerRepo.findAllByUserUidAndDay(uid, day).forEach(existing -> {
+            eventPublisher.publishEvent(EmbeddingTextBuilder.deleteEvent(uid, "planner_item", existing.getId()));
+            eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(uid, "planner_item", existing.getId(), null));
+        });
+
         plannerRepo.deleteAllByUserUidAndDay(uid, day);
         plannerRepo.flush();
 
@@ -59,7 +66,12 @@ public class PlannerService {
                         .title(itemDto.getTitle())
                         .tag(itemDto.getTag())
                         .build();
-                plannerRepo.save(item);
+                PlannerItem saved = plannerRepo.save(item);
+                // Index the new item immediately
+                eventPublisher.publishEvent(EmbeddingTextBuilder.buildEvent(
+                        uid, "planner_item", saved.getId(), buildPlannerText(saved)));
+                eventPublisher.publishEvent(new KnowledgeGraphTriggerEvent(
+                        uid, "planner_item", saved.getId(), buildPlannerText(saved)));
             });
         }
         return getSchedule(uid);
@@ -123,24 +135,4 @@ public class PlannerService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private User getUser(String uid) {
-        return userRepo.findById(uid)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-    }
-
-    private PlannerItemResponse toResponse(PlannerItem item) {
-        PlannerItemResponse r = new PlannerItemResponse();
-        r.setId(item.getId());
-        r.setDay(item.getDay());
-        r.setStartTime(item.getStartTime());
-        r.setEndTime(item.getEndTime());
-        r.setTitle(item.getTitle());
-        r.setTag(item.getTag());
-        return r;
-    }
-
-    private String buildPlannerText(PlannerItem item) {
-        return item.getTitle() + " " + item.getDay() + " " + item.getStartTime() + "-" + item.getEndTime()
-                + (item.getTag() != null ? " [" + item.getTag() + "]" : "");
-    }
-}
+    private User getUse

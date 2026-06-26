@@ -259,12 +259,14 @@ function AiChatContent() {
     setIsLoading(true);
 
     try {
-      const systemInstructions = AI_PERSONALITIES[selectedPersonality].systemInstructions;
+      // Don't prepend a frontend system message — the backend assembles the full
+      // system prompt (RAG + structured context + memory graph) and injects
+      // the selected personality there. A duplicate system message would cause
+      // the AI to receive two system prompts.
       const contextMessages = aiSettings.enableContextMemory
         ? messages.slice(-aiSettings.maxContextLength)
         : [];
       const normalizedMessages = [
-        { role: 'system', content: systemInstructions },
         ...contextMessages.map((m) => ({ role: m.role, content: m.content })),
         { role: userMsg.role, content: userMsg.content },
       ];
@@ -276,6 +278,7 @@ function AiChatContent() {
         temporary: isTemporaryChat || undefined,
         ...(aiSettings.preferredModel.trim() ? { model: aiSettings.preferredModel.trim() } : {}),
         mode: chatMode,
+        personality: selectedPersonality,
       };
 
       const response = await fetch('/api/ai/chat/stream', {
@@ -548,11 +551,4 @@ export default function AiChatPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
-      }
-    >
-      <AiChatContent />
-    </Suspense>
-  );
-}
+        
