@@ -4,7 +4,7 @@ A focused life management application built with Spring Boot and Next.js. Combin
 
 ## 🚀 Features
 
-- **Dashboard** - Unified view of your day — habits, todos, planner, and water intake at a glance
+- **Dashboard** - Unified view of your day — habits, todos, planner, and water intake at a glance.
 - **Task Management** - Full todo list with priorities and a daily planner
 - **Habit Tracking** - Build streaks, visualise last-7-day completion grids, get milestone insights
 - **Note Taking** - Create and organise notes with markdown support; notes are fully searchable by the AI
