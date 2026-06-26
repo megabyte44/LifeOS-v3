@@ -3,8 +3,8 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Wallet, ListChecks, GlassWater, TrendingUp, TrendingDown, Target, Clock, Droplets, CheckCircle2, ArrowRight, Dumbbell, Flame, Check, Plus, CalendarCheck, Trash2, AlertCircle } from 'lucide-react';
-import { useHabits, useTransactions, useTodos, usePlanner } from '@/hooks/api';
+import { ListChecks, GlassWater, Clock, Droplets, CheckCircle2, ArrowRight, Flame, Check, Plus, CalendarCheck, Trash2, AlertCircle } from 'lucide-react';
+import { useHabits, useTodos, usePlanner } from '@/hooks/api';
 import type { Habit } from '@/types';
 import { useState, useEffect } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format, isSameDay, parseISO, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import { calculateStreak } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/use-auth';
@@ -377,132 +377,6 @@ function HabitStreaksCard() {
   );
 }
 
-// ─── Financial Snapshot Card ─────────────────────────────────────────────────
-function FinancialSnapshotCard() {
-  const { transactions, monthlyBudget, isLoading, error } = useTransactions();
-  const now = new Date();
-
-  const startOfCurrentMonth = startOfMonth(now);
-  const monthlyExpenses = transactions
-    .filter((t) => t.type === 'expense' && parseISO(t.date) >= startOfCurrentMonth)
-    .reduce((sum, t) => sum + t.amount, 0);
-  const monthlyIncome = transactions
-    .filter((t) => t.type === 'income' && parseISO(t.date) >= startOfCurrentMonth)
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const todaysExpenses = transactions
-    .filter((t) => t.type === 'expense' && isSameDay(parseISO(t.date), now))
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const remaining = monthlyIncome - monthlyExpenses;
-  const budgetUsage = monthlyBudget > 0 ? Math.round((monthlyExpenses / monthlyBudget) * 100) : 0;
-  const isOverBudget = budgetUsage > 100;
-
-  const fmt = (cents: number) => `₹${(cents / 100).toLocaleString('en-IN', { minimumFractionDigits: 0 })}`;
-
-  return (
-    <Card className="relative overflow-hidden border-2 hover:shadow-lg transition-all duration-300">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/10 to-transparent rounded-full -mr-16 -mt-16" />
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 text-white shadow-md">
-              <Wallet className="h-6 w-6" />
-            </div>
-            <div>
-              <CardTitle className="text-lg font-bold">Financial Snapshot</CardTitle>
-              <CardDescription className="text-xs">{isLoading ? 'Loading...' : 'Your money at a glance'}</CardDescription>
-            </div>
-          </div>
-          <Link href="/expenses" className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 shrink-0">
-            Details <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-      </CardHeader>
-
-      <CardContent className="px-4 pb-4 space-y-4">
-        {isLoading ? (
-          <CardSkeleton lines={4} />
-        ) : error ? (
-          <CardError />
-        ) : (
-          <>
-            {/* Balance highlight */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Balance</p>
-                  <p className={cn(
-                    'text-3xl font-bold tracking-tight',
-                    remaining >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                  )}>
-                    {fmt(remaining)}
-                  </p>
-                </div>
-                <div className={cn(
-                  'h-12 w-12 rounded-full flex items-center justify-center',
-                  remaining >= 0 ? 'bg-green-500/20' : 'bg-red-500/20'
-                )}>
-                  {remaining >= 0 ? (
-                    <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Today's expenses */}
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border/50">
-              <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                <span className="text-lg font-bold text-orange-600 dark:text-orange-400">₹</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">Today&apos;s Expenses</p>
-                <p className="text-lg font-bold">{fmt(todaysExpenses)}</p>
-              </div>
-            </div>
-
-            {/* Budget progress */}
-            {monthlyBudget > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Monthly Budget</span>
-                  </div>
-                  <span className={cn(
-                    'font-semibold text-xs',
-                    isOverBudget ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
-                  )}>
-                    {budgetUsage}%
-                  </span>
-                </div>
-                <Progress
-                  value={Math.min(budgetUsage, 100)}
-                  className={cn('h-2.5', isOverBudget && '[&>*]:bg-red-500')}
-                />
-                <div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>{fmt(monthlyExpenses)} spent</span>
-                  <span>{fmt(monthlyBudget)} budget</span>
-                </div>
-              </div>
-            )}
-
-            {isOverBudget && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 text-center">
-                <p className="text-xs font-medium text-red-700 dark:text-red-400">
-                  ⚠️ Over budget this month
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 // ─── Water Intake Card ───────────────────────────────────────────────────────
 function WaterIntakeCard() {
   const { habits, updateHabit, isLoading } = useHabits();
@@ -605,9 +479,9 @@ function WaterIntakeCard() {
 function QuickLinks() {
   const links = [
     { href: '/planner', icon: Clock, label: 'Planner', gradient: 'from-purple-500 to-pink-500' },
-    { href: '/goals', icon: Target, label: 'Goals', gradient: 'from-amber-500 to-orange-500' },
     { href: '/notes', icon: ListChecks, label: 'Notes', gradient: 'from-teal-500 to-cyan-500' },
-    { href: '/gym', icon: Dumbbell, label: 'Health', gradient: 'from-red-500 to-rose-500' },
+    { href: '/habits', icon: Flame, label: 'Habits', gradient: 'from-orange-500 to-amber-500' },
+    { href: '/ai-chat', icon: CheckCircle2, label: 'AI Chat', gradient: 'from-blue-500 to-indigo-500' },
   ];
 
   return (
@@ -669,7 +543,6 @@ export default function DashboardPage() {
           <TodoListCard />
           <TodaysPlanCard />
           <HabitStreaksCard />
-          <FinancialSnapshotCard />
           <WaterIntakeCard />
         </div>
       </div>

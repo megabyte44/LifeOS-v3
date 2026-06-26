@@ -5,12 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutDashboard,
-  Wallet,
   StickyNote,
   LogOut,
   Moon,
   Sun,
-  KeyRound,
   Settings as SettingsIcon,
   UserCog,
   CalendarDays,
@@ -18,12 +16,8 @@ import {
   Loader2,
   User as UserIcon,
   Shield,
-  Dumbbell,
-  Target,
   CalendarCheck,
   Search,
-  ChevronRight,
-  Sparkles,
   MessageSquare,
 } from 'lucide-react';
 import { AnvilIcon } from '@/components/ui/anvil-icon';
@@ -105,10 +99,8 @@ type NavItem = {
 
 const primaryNav: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Today' },
-  { href: '/habits', icon: AnvilIcon, label: 'Habits', matchPaths: ['/planner', '/goals', '/notes'] },
-  { href: '/gym', icon: Dumbbell, label: 'Health' },
-  { href: '/expenses', icon: Wallet, label: 'Finance' },
-  { href: '/ai-chat', icon: MessageSquare, label: 'AI', matchPaths: ['/reminders', '/notifications', '/password-manager'] },
+  { href: '/habits', icon: AnvilIcon, label: 'Habits', matchPaths: ['/planner', '/notes'] },
+  { href: '/ai-chat', icon: MessageSquare, label: 'AI', matchPaths: ['/reminders', '/notifications'] },
 ];
 
 // Bottom-of-sidebar mobile nav items (5 max for comfortable thumb reach)
@@ -116,8 +108,8 @@ const mobileNav: NavItem[] = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Today' },
   { href: '/habits', icon: AnvilIcon, label: 'Habits' },
   { href: '/ai-chat', icon: MessageSquare, label: 'Chat' },
-  { href: '/expenses', icon: Wallet, label: 'Finance' },
   { href: '/notes', icon: StickyNote, label: 'Notes' },
+  { href: '/planner', icon: CalendarDays, label: 'Planner' },
 ];
 
 function DesktopSidebar() {
@@ -278,17 +270,11 @@ function UserNav({ user, onLogout }: { user: User; onLogout: () => void }) {
           <DropdownMenuItem onSelect={() => router.push('/planner')}>
             <CalendarDays className="mr-2 h-4 w-4" />Planner
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => router.push('/goals')}>
-            <Target className="mr-2 h-4 w-4" />Goals
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push('/notes')}>
             <StickyNote className="mr-2 h-4 w-4" />Notes
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => router.push('/reminders')}>
             <CalendarCheck className="mr-2 h-4 w-4" />Reminders
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => router.push('/password-manager')}>
-            <KeyRound className="mr-2 h-4 w-4" />Passwords
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -437,3 +423,4 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
