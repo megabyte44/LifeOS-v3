@@ -21,7 +21,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 const iconMap: Record<string, React.ElementType> = {
@@ -46,8 +45,6 @@ export default function HabitsPage() {
   const [isAddHabitDialogOpen, setIsAddHabitDialogOpen] = useState(false);
   const [habitToDelete, setHabitToDelete] = useState<Habit | null>(null);
 
-  // Collapse states - all collapsed by default
-  const [isStreakBookCollapsed, setIsStreakBookCollapsed] = useState(true);
 
   // --- Handlers that save to Firestore ---
   const handleToggleCompletion = async (habitId: string, date: string) => {
@@ -126,21 +123,16 @@ export default function HabitsPage() {
       <>
       <div className="space-y-6">
         <header className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 via-primary/10 to-primary/5 rounded-xl border border-primary/20">
-          <div 
-            className="flex items-center gap-3 cursor-pointer group" 
-            onClick={() => setIsStreakBookCollapsed(!isStreakBookCollapsed)}
-          >
-            <div className="p-2 rounded-lg bg-primary/20 group-hover:scale-110 transition-transform">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/20">
               <BookOpenCheck className="h-6 w-6 text-primary" />
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground">Streaks & habits</p>
-              <p className="text-xs text-muted-foreground">
-                {isStreakBookCollapsed ? 'Click to expand' : 'Track daily habits and sprint challenges'}
-              </p>
+              <p className="text-xs text-muted-foreground">Track daily habits and sprint challenges</p>
             </div>
           </div>
-          <Button 
+          <Button
             onClick={() => setIsAddHabitDialogOpen(true)}
             size="sm"
             className="h-9 px-3 shadow-lg hover:shadow-xl transition-all duration-200 bg-primary hover:bg-primary/90"
@@ -150,103 +142,70 @@ export default function HabitsPage() {
             <span className="sm:hidden">Add</span>
           </Button>
         </header>
-        {!isStreakBookCollapsed && (
-          <Accordion type="single" collapsible className="w-full space-y-4">
-            {filteredHabits.map((habit) => {
-              if (!habit) return null;
-              const Icon = iconMap[habit.icon] || iconMap.CheckCircle2;
-              const streak = calculateStreak(
-                habit.completions,
-                1
-              );
-              
-              // Sprint habit calculations
-              const isSprint = habit.habitType === 'sprint';
-              let sprintDaysRemaining = 0;
-              if (isSprint && habit.sprintEndDate) {
-                const today = new Date();
-                const endDate = parseISO(habit.sprintEndDate);
-                sprintDaysRemaining = differenceInCalendarDays(endDate, today);
-              }
-              
-              return (
-                <Card key={habit.id} className="group relative overflow-hidden border-l-4 border-l-primary/20 hover:border-l-primary/60 transition-all duration-200 hover:shadow-md bg-gradient-to-r from-background via-background to-background/95">
-                  <AccordionItem value={habit.id} className="border-b-0">
-                    <AccordionTrigger className="p-4 hover:no-underline">
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                            <Icon className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-base">{habit.name}</span>
-                            {isSprint && (
-                              <Badge 
-                                variant="secondary" 
-                                className="bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/30 text-orange-700 dark:text-orange-300 text-xs gap-1"
-                              >
-                                <Zap className="h-3 w-3" />
-                                {sprintDaysRemaining > 0 ? `${sprintDaysRemaining}d left` : 'Ended'}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-                          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-950/30 dark:to-red-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
-                            <Flame className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500 animate-pulse shrink-0" />
-                            <div className="flex items-center gap-1">
-                              <span className="font-bold text-sm sm:text-lg bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                                {streak}
-                              </span>
-                              <span className="text-xs sm:text-sm font-medium text-orange-700 dark:text-orange-300">
-                                day{streak !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      {/* Edit and Delete buttons in expanded mode */}
-                      <div className="flex items-center justify-end gap-2 px-4 pb-3 border-b mb-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEditingHabit(habit);
-                            setIsEditHabitDialogOpen(true);
-                          }}
+
+        <div className="w-full space-y-4">
+          {filteredHabits.map((habit) => {
+            if (!habit) return null;
+            const Icon = iconMap[habit.icon] || iconMap.CheckCircle2;
+            const streak = calculateStreak(habit.completions, 1);
+
+            const isSprint = habit.habitType === 'sprint';
+            let sprintDaysRemaining = 0;
+            if (isSprint && habit.sprintEndDate) {
+              sprintDaysRemaining = differenceInCalendarDays(parseISO(habit.sprintEndDate), new Date());
+            }
+
+            return (
+              <Card key={habit.id} className="group relative overflow-hidden border-l-4 border-l-primary/20 hover:border-l-primary/60 transition-all duration-200 hover:shadow-md bg-gradient-to-r from-background via-background to-background/95">
+                {/* Header row */}
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                      <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-base">{habit.name}</span>
+                      {isSprint && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/30 text-orange-700 dark:text-orange-300 text-xs gap-1"
                         >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setHabitToDelete(habit);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </Button>
-                      </div>
-                      <HabitGrid 
-                        habit={habit} 
-                        onToggle={handleToggleCompletion}
-                      />
-                    </AccordionContent>
-                  </AccordionItem>
-                </Card>
-              );
-            })}
-          </Accordion>
-        )}
+                          <Zap className="h-3 w-3" />
+                          {sprintDaysRemaining > 0 ? `${sprintDaysRemaining}d left` : 'Ended'}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-950/30 dark:to-red-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
+                      <Flame className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500 animate-pulse shrink-0" />
+                      <span className="font-bold text-sm sm:text-lg bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">{streak}</span>
+                      <span className="text-xs sm:text-sm font-medium text-orange-700 dark:text-orange-300">day{streak !== 1 ? 's' : ''}</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => { setEditingHabit(habit); setIsEditHabitDialogOpen(true); }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setHabitToDelete(habit)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                {/* Always-visible calendar grid */}
+                <HabitGrid habit={habit} onToggle={handleToggleCompletion} />
+              </Card>
+            );
+          })}
+        </div>
       </div>
       <EditHabitDialog
         habit={editingHabit}
