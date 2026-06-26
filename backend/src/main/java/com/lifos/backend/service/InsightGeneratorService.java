@@ -213,4 +213,3 @@ public class InsightGeneratorService {
         return aiConfigurationResolver.resolveProviderApiKey(provider, config.getApiKeys());
     }
 }
-                                                                                                                                                                                 
