@@ -135,4 +135,24 @@ public class PlannerService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private User getUse
+    private User getUser(String uid) {
+        return userRepo.findById(uid)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    private PlannerItemResponse toResponse(PlannerItem item) {
+        PlannerItemResponse r = new PlannerItemResponse();
+        r.setId(item.getId());
+        r.setDay(item.getDay());
+        r.setStartTime(item.getStartTime());
+        r.setEndTime(item.getEndTime());
+        r.setTitle(item.getTitle());
+        r.setTag(item.getTag());
+        return r;
+    }
+
+    private String buildPlannerText(PlannerItem item) {
+        return item.getTitle() + " " + item.getDay() + " " + item.getStartTime() + "-" + item.getEndTime()
+                + (item.getTag() != null ? " [" + item.getTag() + "]" : "");
+    }
+}
