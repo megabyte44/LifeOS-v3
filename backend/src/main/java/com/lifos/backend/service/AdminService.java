@@ -26,7 +26,6 @@ public class AdminService {
     private final NoteRepository noteRepo;
     private final TodoRepository todoRepo;
     private final HabitRepository habitRepo;
-    private final TransactionRepository transactionRepo;
     private final AiChatHistoryRepository aiChatHistoryRepo;
     private final AiConfigurationRepository aiConfigRepo;
     private final AiConfigurationResolver aiConfigurationResolver;
@@ -57,7 +56,6 @@ public class AdminService {
             r.setNotesCount(noteRepo.countByUserUid(u.getUid()));
             r.setTodosCount(todoRepo.countByUserUid(u.getUid()));
             r.setHabitsCount(habitRepo.countByUserUid(u.getUid()));
-            r.setTransactionsCount(transactionRepo.countByUserUid(u.getUid()));
             r.setAiMessagesCount(aiChatHistoryRepo.countByUserUid(u.getUid()));
             r.setRole(u.getRole());
             return r;
@@ -298,3 +296,4 @@ public class AdminService {
         return r;
     }
 }
+                                                                                                                                           

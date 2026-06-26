@@ -6,9 +6,17 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lifos.backend.dto.UpdateUserProfileRequest;
 import com.lifos.backend.dto.UserProfileDetailResponse;
-import com.lifos.backend.entity.*;
+import com.lifos.backend.entity.ConversationMemory;
+import com.lifos.backend.entity.Habit;
+import com.lifos.backend.entity.Note;
+import com.lifos.backend.entity.User;
+import com.lifos.backend.entity.UserProfile;
 import com.lifos.backend.event.KnowledgeGraphTriggerEvent;
-import com.lifos.backend.repository.*;
+import com.lifos.backend.repository.ConversationMemoryRepository;
+import com.lifos.backend.repository.HabitRepository;
+import com.lifos.backend.repository.NoteRepository;
+import com.lifos.backend.repository.UserProfileRepository;
+import com.lifos.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -27,7 +35,6 @@ public class UserProfileService {
     private final UserProfileRepository userProfileRepository;
     private final UserRepository userRepository;
     private final NoteRepository noteRepository;
-    private final GoalRepository goalRepository;
     private final HabitRepository habitRepository;
     private final ConversationMemoryRepository conversationMemoryRepository;
     private final ObjectMapper objectMapper;
@@ -140,20 +147,7 @@ public class UserProfileService {
             ctx.append("\n");
         }
 
-        // 3. Goals
-        List<Goal> goals = goalRepository.findAllByUserUidWithChildren(userUid);
-        if (!goals.isEmpty()) {
-            ctx.append("=== USER'S GOALS ===\n");
-            for (Goal g : goals) {
-                ctx.append("- ").append(g.getTitle());
-                if (g.getCategory() != null) ctx.append(" [").append(g.getCategory()).append("]");
-                if (g.getMotive() != null) ctx.append(" — motive: ").append(g.getMotive());
-                ctx.append("\n");
-            }
-            ctx.append("\n");
-        }
-
-        // 4. Habits
+        // 3. Habits
         List<Habit> habits = habitRepository.findAllByUserUid(userUid);
         if (!habits.isEmpty()) {
             ctx.append("=== USER'S HABITS ===\n");
@@ -318,3 +312,4 @@ public class UserProfileService {
                 .build();
     }
 }
+                                                                                                                                                                                              
