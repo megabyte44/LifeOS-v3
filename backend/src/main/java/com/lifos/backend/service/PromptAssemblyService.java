@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
  *   <li><b>Layer 3 — Memory Graph</b>: {@link MemoryGraphService} provides a computed
  *       static+dynamic user profile from the graph (replaces raw memory dump).</li>
  *   <li><b>Layer 2 — Structured App Data</b>: {@link StructuredContextService} injects
- *       SQL snapshots (habits, goals, gym, finance, schedule) gated on query intent.</li>
+ *       SQL snapshots (habits, schedule, notes) gated on query intent.</li>
  *   <li><b>Layer 1 — RAG Knowledge</b>: {@link MemoryRetrievalStrategyService} retrieves
  *       semantically relevant notes/documents via hybrid BM25+vector search.</li>
  * </ol>

@@ -120,17 +120,15 @@ public class InsightGeneratorService {
 
                 Analyze today's data snapshot and detect ONE meaningful pattern worth highlighting.
                 Check these patterns in priority order:
-                1. Budget alert      — spending is above 80% of the monthly budget
-                2. Goal deadline     — an active goal has a target date within 7 days
-                3. Habit streak break — a habit shows streak: 0d or 1d after previously being active
-                4. Workout gap       — gym section shows 0 workouts in the last 7 days
-                5. Streak milestone  — a habit streak is exactly 7, 14, 21, 30, 50, or 100 days
-                6. Positive win      — notable achievement worth celebrating
+                1. Habit streak break — a habit shows streak: 0d or 1d after previously being active
+                2. Streak milestone   — a habit streak is exactly 7, 14, 21, 30, 50, or 100 days
+                3. Overdue todos      — high-priority todos have been pending for a long time
+                4. Positive win       — notable achievement worth celebrating
 
                 RULES:
                 - If nothing meaningful stands out, respond with exactly: SKIP
                 - Choose only the MOST significant pattern
-                - Reference the specific name or amount from the snapshot (habit name, goal title, etc.)
+                - Reference the specific name from the snapshot (habit name, todo text, etc.)
                 - Message must be warm, motivational, and concise (2-3 sentences max)
                 - Never be generic
 
@@ -215,3 +213,4 @@ public class InsightGeneratorService {
         return aiConfigurationResolver.resolveProviderApiKey(provider, config.getApiKeys());
     }
 }
+                                                                                                                                                                                 
