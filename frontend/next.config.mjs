@@ -35,6 +35,9 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Standalone output for Docker / Hugging Face Spaces deployments
+  output: process.env.DOCKER_BUILD === "1" ? "standalone" : undefined,
+
   // Enable React strict mode for better development
   reactStrictMode: true,
 
